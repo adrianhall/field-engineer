@@ -19,6 +19,17 @@ type DiagnosticSettings = {
   enableDiagnosticLogs: bool
 }
 
+type NetworkIsolationSettings = {
+  @description('If set, the name of the inbound private endpoint')
+  privateEndpointSubnetName: string?
+
+  @description('If set, the name of the subnet for service connections')
+  serviceConnectionSubnetName: string?
+
+  @description('If set, the name of the virtual network to use')
+  virtualNetworkName: string?
+}
+
 // =====================================================================================================================
 //     PARAMETERS
 // =====================================================================================================================
@@ -31,6 +42,9 @@ param location string
 
 @description('The name of the resource')
 param name string
+
+@description('The network isolation settings')
+param networkIsolationSettings NetworkIsolationSettings = {}
 
 @description('The tags to associate with the resource')
 param tags object
@@ -80,13 +94,29 @@ var diagnosticLogSettings = map(diagnosticLogCategories, category => {
 })
 var logSettings = concat(auditLogSettings, diagnosticLogSettings)
 
+var defaultAppServiceProperties = {
+  clientAffinityEnabled: false
+  httpsOnly: true
+  publicNetworkAccess: enablePublicNetworkAccess ? 'Enabled' : 'Disabled'
+  serverFarmId: resourceId('Microsoft.Web/serverfarms', appServicePlanName)
+  siteConfig: {
+    alwaysOn: true
+    detailedErrorLoggingEnabled: diagnosticSettings.enableDiagnosticLogs
+    httpLoggingEnabled: diagnosticSettings.enableDiagnosticLogs
+    requestTracingEnabled: diagnosticSettings.enableDiagnosticLogs
+    ftpsState: 'Disabled'
+    minTlsVersion: '1.2'
+  }
+}
+
+var networkIsolationAppServiceProperties = contains(networkIsolationSettings, 'serviceConnectionSubnetName') ? {
+  virtualNetworkSubnetId: resourceId('Microsoft.Network/virtualNetworks/subnets', networkIsolationSettings.virtualNetworkName ?? '', networkIsolationSettings.serviceConnectionSubnetName ?? '')
+  vnetRouteAllEnabled: true
+} : {}
+
 // =====================================================================================================================
 //     AZURE RESOURCES
 // =====================================================================================================================
-
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' existing = {
-  name: appServicePlanName
-}
 
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: managedIdentityName
@@ -103,20 +133,7 @@ resource appService 'Microsoft.Web/sites@2022-09-01' = {
       '${managedIdentity.id}': {}
     }
   }
-  properties: {
-    clientAffinityEnabled: false
-    httpsOnly: true
-    publicNetworkAccess: enablePublicNetworkAccess ? 'Enabled' : 'Disabled'
-    serverFarmId: appServicePlan.id
-    siteConfig: {
-      alwaysOn: true
-      detailedErrorLoggingEnabled: diagnosticSettings.enableDiagnosticLogs
-      httpLoggingEnabled: diagnosticSettings.enableDiagnosticLogs
-      requestTracingEnabled: diagnosticSettings.enableDiagnosticLogs
-      ftpsState: 'Disabled'
-      minTlsVersion: '1.2'
-    }
-  }
+  properties: union(defaultAppServiceProperties, networkIsolationAppServiceProperties)
 
   resource configAppSettings 'config' = {
     name: 'appsettings'

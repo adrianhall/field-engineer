@@ -1,3 +1,14 @@
+type PrivateLinkSettings = {
+  @description('The resource ID of the private endpoint resource')
+  privateEndpointResourceId: string?
+
+  @description('The private link resource type')
+  linkResourceType: string?
+
+  @description('The Azure region hosting the private link')
+  location: string?
+}
+
 // =====================================================================================================================
 //     PARAMETERS
 // =====================================================================================================================
@@ -18,11 +29,29 @@ param healthProbePath string = '/'
 @description('The prefix for the name of the resources to create')
 param originPrefix string
 
+@description('The private link settings for the backend service')
+param privateLinkSettings PrivateLinkSettings = {}
+
 @description('The route pattern to route to this backend service')
 param routePattern string
 
 @description('The host name to use for backend service routing')
 param serviceAddress string
+
+// =====================================================================================================================
+//     CALCULATED VARIABLES
+// =====================================================================================================================
+
+var isPrivateLinkOrigin = contains(privateLinkSettings, 'privateEndpointResourceId')
+
+var privateLinkOriginDetails = {
+  privateLink: {
+    id: privateLinkSettings.privateEndpointResourceId ?? ''
+  }
+  groupId: privateLinkSettings.linkResourceType ?? ''
+  privateLinkLocation: privateLinkSettings.location ?? ''
+  requestMessage: 'Please approve the private link request'
+}
 
 // =====================================================================================================================
 //     AZURE RESOURCES
@@ -63,6 +92,7 @@ resource origin 'Microsoft.Cdn/profiles/originGroups/origins@2021-06-01' = {
     httpsPort: 443
     originHostHeader: serviceAddress
     priority: 1
+    sharedPrivateLinkResource: isPrivateLinkOrigin ? privateLinkOriginDetails : null
     weight: 1000
   }
 }

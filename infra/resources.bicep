@@ -120,6 +120,17 @@ module common './architecture/common-resources.bicep' = {
   }
 }
 
+module network './architecture/network-isolation.bicep' = {
+  name: 'arch-network-isolation'
+  params: {
+    diagnosticSettings: diagnosticSettings
+    environment: environment
+
+    // Resource names
+    virtualNetworkName: resourceNames.virtualNetworkName
+  }
+}
+
 module configuration './architecture/configuration-resources.bicep' = {
   name: 'arch-configuration'
   params: {
@@ -132,6 +143,13 @@ module configuration './architecture/configuration-resources.bicep' = {
 
     // Dependencies
     managedIdentityPrincipalId: common.outputs.principal_id
+
+    // Network isolation settings
+    networkIsolationSettings: environment.isNetworkIsolated ? {
+      privateEndpointSubnetName: network.outputs.configuration_subnet_name
+      serviceConnectionSubnetName: network.outputs.configuration_subnet_name
+      virtualNetworkName: network.outputs.virtual_network_name
+    } : {}
   }
 }
 
@@ -152,6 +170,13 @@ module storage './architecture/storage-resources.bicep' = {
     sqlAdministratorPassword: sqlAdministratorPassword
     sqlAdministratorUsername: sqlAdministratorUsername
     useExistingSqlServer: environment.useExistingSqlServer
+
+    // Network isolation settings
+    networkIsolationSettings: environment.isNetworkIsolated ? {
+      privateEndpointSubnetName: network.outputs.storage_subnet_name
+      serviceConnectionSubnetName: network.outputs.storage_subnet_name
+      virtualNetworkName: network.outputs.virtual_network_name
+    } : {}
   }
 }
 
@@ -173,6 +198,13 @@ module apiService './architecture/api-service-resources.bicep' = {
 
     // Settings
     useExistingAppServicePlan: environment.useCommonAppServicePlan
+
+    // Network isolation settings
+    networkIsolationSettings: environment.isNetworkIsolated ? {
+      privateEndpointSubnetName: network.outputs.api_inbound_subnet_name
+      serviceConnectionSubnetName: network.outputs.api_outbound_subnet_name
+      virtualNetworkName: network.outputs.virtual_network_name
+    } : {}
   }
 }
 
@@ -194,6 +226,13 @@ module webService './architecture/web-service-resources.bicep' = {
 
     // Settings
     useExistingAppServicePlan: environment.useCommonAppServicePlan
+    
+    // Network isolation settings
+    networkIsolationSettings: environment.isNetworkIsolated ? {
+      privateEndpointSubnetName: network.outputs.web_inbound_subnet_name
+      serviceConnectionSubnetName: network.outputs.web_outbound_subnet_name
+      virtualNetworkName: network.outputs.virtual_network_name
+    } : {}
   }
 }
 
@@ -237,8 +276,8 @@ module postProvision './post-provision.bicep' = {
     ]
 
     frontDoorRoutes: [
-      { name: 'api', serviceAddress: apiService.outputs.hostname, routePattern: '/api/*' }
-      { name: 'web', serviceAddress: webService.outputs.hostname, routePattern: '/*'     }
+      { name: 'api', serviceAddress: apiService.outputs.hostname, routePattern: '/api/*', privateEndpointResourceId: environment.isNetworkIsolated ? apiService.outputs.app_service_id : '' }
+      { name: 'web', serviceAddress: webService.outputs.hostname, routePattern: '/*',     privateEndpointResourceId: environment.isNetworkIsolated ? webService.outputs.app_service_id : '' }
     ]
 
     managedIdentityPermissions: [

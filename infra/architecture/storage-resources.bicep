@@ -48,6 +48,17 @@ type DiagnosticSettings = {
   enableDiagnosticLogs: bool
 }
 
+type NetworkIsolationSettings = {
+  @description('If set, the name of the inbound private endpoint')
+  privateEndpointSubnetName: string?
+
+  @description('If set, the name of the subnet for service connections')
+  serviceConnectionSubnetName: string?
+
+  @description('If set, the name of the virtual network to use')
+  virtualNetworkName: string?
+}
+
 // =====================================================================================================================
 //     PARAMETERS
 // =====================================================================================================================
@@ -86,6 +97,9 @@ param sqlAdministratorUsername string
 @description('If true, the SQL Server already exists')
 param useExistingSqlServer bool = false
 
+@description('The network isolation settings for this architectural component')
+param networkIsolationSettings NetworkIsolationSettings = {}
+
 // =====================================================================================================================
 //     AZURE RESOURCES
 // =====================================================================================================================
@@ -123,6 +137,21 @@ module sqlDatabase '../azure/database/sql-database.bicep' = {
     dtuCapacity: environment.isProduction ? 125 : 10
     enableZoneRedundancy: environment.isProduction
     sku: environment.isProduction ? 'Premium' : 'Standard'
+  }
+}
+
+module sqlDatabasePrivateEndpoint '../azure/network/private-endpoint.bicep' = if (contains(networkIsolationSettings, 'privateEndpointSubnetName')) {
+  name: 'storage-sqldatabase-private-endpoint'
+  params: {
+    name: 'private-endpoint-${sqlDatabase.outputs.name}'
+    location: environment.location
+    tags: environment.tags
+    dnsZoneName: 'privatelink${az.environment().suffixes.sqlServerHostname}'
+    groupIds: [ 'sqlServer' ]
+    linkServiceName: '${sqlServer.outputs.name}/${sqlDatabase.outputs.name}'
+    linkServiceId: sqlServer.outputs.id
+    subnetName: networkIsolationSettings.privateEndpointSubnetName ?? ''
+    virtualNetworkName: networkIsolationSettings.virtualNetworkName ?? ''
   }
 }
 

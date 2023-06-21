@@ -48,6 +48,17 @@ type DiagnosticSettings = {
   enableDiagnosticLogs: bool
 }
 
+type NetworkIsolationSettings = {
+  @description('If set, the name of the inbound private endpoint')
+  privateEndpointSubnetName: string?
+
+  @description('If set, the name of the subnet for service connections')
+  serviceConnectionSubnetName: string?
+
+  @description('If set, the name of the virtual network to use')
+  virtualNetworkName: string?
+}
+
 // =====================================================================================================================
 //     PARAMETERS
 // =====================================================================================================================
@@ -73,6 +84,9 @@ param keyVaultName string
 @description('The Principal ID of the managed identity to use for the application owner')
 param managedIdentityPrincipalId string
 
+@description('The network isolation settings for this architectural component')
+param networkIsolationSettings NetworkIsolationSettings = {}
+
 // =====================================================================================================================
 //     AZURE RESOURCES
 // =====================================================================================================================
@@ -95,6 +109,21 @@ module appConfiguration '../azure/storage/app-configuration.bicep' = {
   }
 }
 
+module appConfigurationPrivateEndpoint '../azure/network/private-endpoint.bicep' = if (contains(networkIsolationSettings, 'privateEndpointSubnetName')) {
+  name: 'config-appconfig-private-endpoint'
+  params: {
+    name: 'private-endpoint-${appConfiguration.outputs.name}'
+    location: environment.location
+    tags: environment.tags
+    dnsZoneName: 'privatelink.azconfig.io'
+    groupIds: [ 'configurationStores' ]
+    linkServiceName: appConfiguration.outputs.name
+    linkServiceId: appConfiguration.outputs.id
+    subnetName: networkIsolationSettings.privateEndpointSubnetName ?? ''
+    virtualNetworkName: networkIsolationSettings.virtualNetworkName ?? ''
+  }
+}
+
 module keyVault '../azure/storage/key-vault.bicep' = {
   name: 'config-keyvault'
   params: {
@@ -109,6 +138,21 @@ module keyVault '../azure/storage/key-vault.bicep' = {
 
     // Service settings
     enablePublicNetworkAccess: !environment.isNetworkIsolated
+  }
+}
+
+module keyVaultPrivateEndpoint '../azure/network/private-endpoint.bicep' = if (contains(networkIsolationSettings, 'privateEndpointSubnetName')) {
+  name: 'config-keyvault-private-endpoint'
+  params: {
+    name: 'private-endpoint-${keyVault.outputs.name}'
+    location: environment.location
+    tags: environment.tags
+    dnsZoneName: 'privatelink.vaultcore.azure.net'
+    groupIds: [ 'vault' ]
+    linkServiceName: keyVault.outputs.name
+    linkServiceId: keyVault.outputs.id
+    subnetName: networkIsolationSettings.privateEndpointSubnetName ?? ''
+    virtualNetworkName: networkIsolationSettings.virtualNetworkName ?? ''
   }
 }
 

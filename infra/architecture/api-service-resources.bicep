@@ -48,6 +48,17 @@ type DiagnosticSettings = {
   enableDiagnosticLogs: bool
 }
 
+type NetworkIsolationSettings = {
+  @description('If set, the name of the inbound private endpoint')
+  privateEndpointSubnetName: string?
+
+  @description('If set, the name of the subnet for service connections')
+  serviceConnectionSubnetName: string?
+
+  @description('If set, the name of the virtual network to use')
+  virtualNetworkName: string?
+}
+
 // =====================================================================================================================
 //     PARAMETERS
 // =====================================================================================================================
@@ -85,7 +96,11 @@ param keyVaultName string
 /*
 ** Service settings
 */
+@description('If true, the appServicePlanName exists already.  If false, create a new app service plan')
 param useExistingAppServicePlan bool = false
+
+@description('The network isolation settings for this architectural component')
+param networkIsolationSettings NetworkIsolationSettings = {}
 
 // =====================================================================================================================
 //     CALCULATED VARIABLES
@@ -136,6 +151,7 @@ module appService '../azure/hosting/app-service.bicep' = {
   name: '${servicePrefix}-app-service'
   params: {
     diagnosticSettings: diagnosticSettings
+    networkIsolationSettings: networkIsolationSettings
     location: environment.location
     name: appServiceName
     tags: union(environment.tags, { 'azd-service-name': servicePrefix })
@@ -164,13 +180,30 @@ module appService '../azure/hosting/app-service.bicep' = {
   }
 }
 
+module privateEndpoint '../azure/network/private-endpoint.bicep' = if (contains(networkIsolationSettings, 'privateEndpointSubnetName')) {
+  name: '${servicePrefix}-app-service-private-endpoint'
+  params: {
+    name: 'private-endpoint-${appService.outputs.name}'
+    location: environment.location
+    tags: environment.tags
+    dnsZoneName: 'privatelink.azurewebsites.net'
+    groupIds: [ 'sites' ]
+    linkServiceName: appService.outputs.name
+    linkServiceId: appService.outputs.id
+    subnetName: networkIsolationSettings.privateEndpointSubnetName ?? ''
+    virtualNetworkName: networkIsolationSettings.virtualNetworkName ?? ''
+  }
+}
+
 // =====================================================================================================================
 //     OUTPUTS
 // =====================================================================================================================
 
 output app_service_plan_name string = useExistingAppServicePlan ? appServicePlanName : appServicePlan.outputs.name
+output app_service_id string = appService.outputs.id
 output app_service_name string = appService.outputs.name
 output managed_identity_name string = managedIdentity.outputs.name
+output private_endpoint_resource_id string = contains(networkIsolationSettings, 'privateEndpointSubnetName') ? privateEndpoint.outputs.id : ''
 
 output hostname string = appService.outputs.hostname
 output uri string = appService.outputs.uri

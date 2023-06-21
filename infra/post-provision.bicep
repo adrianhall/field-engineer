@@ -57,6 +57,9 @@ type FrontDoorRoute = {
 
   @description('The route pattern to use to forward requests to the service.')
   routePattern: string
+
+  @description('If using private endpoints, the ID of the associated resource')
+  privateEndpointResourceId: string
 }
 
 type ManagedIdentityPermission = {
@@ -235,5 +238,10 @@ module frontDoorRoute './azure/security/front-door-route.bicep' = [ for r in fro
     originPrefix: r.name
     serviceAddress: r.serviceAddress
     routePattern: r.routePattern
+    privateLinkSettings: !empty(r.privateEndpointResourceId) ? {
+      privateEndpointResourceId: r.privateEndpointResourceId
+      linkResourceType: 'sites'
+      location: environment.location
+    } : {}
   }
 }]
