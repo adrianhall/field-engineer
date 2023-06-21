@@ -265,7 +265,7 @@ module devops './architecture/devops-resources.bicep' = {
     // Resource names
     appServicePlanName: resourceNames.devopsAppServicePlan
     functionAppName: resourceNames.devopsFunctionApp
-    storageAccountName: resourceNames.devOpsStorageAccount
+    storageAccountName: resourceNames.devopsStorageAccount
 
     // Dependencies
     appConfigurationName: configuration.outputs.app_configuration_name
