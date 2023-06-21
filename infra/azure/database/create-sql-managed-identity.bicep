@@ -81,7 +81,7 @@ resource createSqlUserScript 'Microsoft.Resources/deploymentScripts@2020-10-01' 
       '-ApplicationId \'${managedIdentity.properties.principalId}\''
       '-ManagedIdentityName \'${managedIdentity.name}\''
       '-SqlAdminUsername \'${sqlAdministratorUsername}\''
-      '-SqlAdminPassword \'${sqlAdministratorPassword}\''
+      '-SqlAdminPW \'${sqlAdministratorPassword}\''
     ], ' ')
     scriptContent: loadTextContent('./scripts/create-sql-managed-identity.ps1')
   }

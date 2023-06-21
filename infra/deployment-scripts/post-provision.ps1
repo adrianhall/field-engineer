@@ -29,4 +29,14 @@
     not do this mechanism.  Instead, use an appropriate CI/CD workflow to do the same thing.
 #>
 
-# TODO: Write this script!
+# TODO: Step 1: Grab the data from the azure developer CLI and convert to objects
+
+# TODO: Step 2: Build and ZIP up the deployment-scripts Function App
+
+# TODO: Step 3: Use Publish-AzWebapp to deploy the Function App
+
+# TODO: Step 4: Invoke-RestMethod on Function App /api/hello to test the connection - repeat with 30 second delay for up to 15 minutes
+
+# TODO: Step 5: For each app configuration not private, call /api/appconfig with key/value/secret and check success
+
+# TODO: Step 6: For each managed identity, call /api/sqlrole with appropriate information

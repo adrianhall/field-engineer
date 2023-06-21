@@ -83,11 +83,11 @@ param environment Environment
 /*
 ** Dependencies
 */
-@description('The name of the App Configuration resource to use')
-param appConfigurationName string
-
 @description('The name of the Key Vault resource to use')
 param keyVaultName string
+
+@description('The URI to the key vault')
+param keyVaultUri string
 
 @description('The name of the Front Door Endpoint resource to use')
 param frontDoorEndpointName string
@@ -133,6 +133,21 @@ var configurationUsers = map(filter(managedIdentityPermissions, (mi) => !mi.isOw
 // List of managed identities that can access the database.
 var databaseUsers = map(filter(managedIdentityPermissions, (mi) => !mi.isOwner && mi.isStorageUser), (mi) => mi.name)
 
+// List of values to place in the Key Vault
+var keyVaultSecrets = map(filter(configurationSettings, (cs) => cs.secret || cs.private), (cs) => {
+  name: replace(cs.name, ':', '--')
+  value: cs.value
+  content_type: 'text/plain;charset=utf-8'
+})
+
+// List of app configuration settings to store
+//value: cs.secret ? '{"uri":"${keyVaultUri}secrets/${replace(cs.name, ':', '--)}"}' : cs.value
+var appConfigSettings = map(filter(configurationSettings, (cs) => !cs.private), (cs) => {
+  name: cs.name
+  value: cs.secret ? '{"uri":"${keyVaultUri}secrets/${replace(cs.name,':','--')}"}' : cs.value
+  content_type: 'application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8'
+})
+
 @description('Built in \'App Configuration Data Reader\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
 var appConfigurationDataReaderRoleId = '516239f1-63e1-4d78-a4de-a74fb236a071'
 
@@ -177,6 +192,19 @@ module grantDatabaseAccess './azure/database/create-sql-managed-identity.bicep' 
 }]
 
 // =====================================================================================================================
+//     CREATE AZURE KEY VAULT VALUES
+// =====================================================================================================================
+
+module kvSecrets './azure/storage/key-vault-secret.bicep' = [ for kv in keyVaultSecrets: {
+  name: 'kv-secret-${uniqueString(kv.name)}'
+  params: {
+    keyVaultName: keyVaultName
+    secretName: kv.name
+    secretValue: kv.value
+  }
+}]
+
+// =====================================================================================================================
 //     CREATE AZURE FRONT DOOR CONFIGURATION
 // =====================================================================================================================
 
@@ -200,5 +228,5 @@ module frontDoorRoute './azure/security/front-door-route.bicep' = [ for r in fro
 //     OUTPUTS - DEFERRED UNTIL POST-PROVISION SCRIPTS
 // =====================================================================================================================
 
-output configuration_settings object[] = configurationSettings
+output configuration_settings object[] = appConfigSettings
 output managed_identity_permissions object[] = managedIdentityPermissions

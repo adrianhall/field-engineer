@@ -90,6 +90,22 @@ resource grantDataOwnerToCurrentUser 'Microsoft.Authorization/roleAssignments@20
   }
 }
 
+resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: '${name}-diagnostics'
+  scope: storageAccount
+  properties: {
+    workspaceId: resourceId('Microsoft.OperationalInsights/workspaces', diagnosticSettings.logAnalyticsWorkspaceName)
+    logs: []
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+        retentionPolicy: { days: diagnosticSettings.diagnosticLogRetentionInDays, enabled: true }
+      }
+    ]
+  }
+}
+
 // =====================================================================================================================
 //     OUTPUTS
 // =====================================================================================================================

@@ -294,10 +294,10 @@ module postProvision './post-provision.bicep' = {
     environment: environment
 
     // Dependencies
-    appConfigurationName: configuration.outputs.app_configuration_name
     frontDoorEndpointName: edgeSecurity.outputs.front_door_endpoint_name
     frontDoorProfileName: edgeSecurity.outputs.front_door_profile_name
     keyVaultName: configuration.outputs.key_vault_name
+    keyVaultUri: configuration.outputs.key_vault_uri
     managedIdentityName: common.outputs.managed_identity_name
     sqlDatabaseName: storage.outputs.sql_database_name
     sqlServerName: storage.outputs.sql_server_name

@@ -46,7 +46,7 @@ Param(
   [Parameter(Mandatory = $true)][string]$ApplicationId,
   [Parameter(Mandatory = $true)][string]$ManagedIdentityName,
   [Parameter(Mandatory = $true)][string]$SqlAdminUsername,
-  [Parameter(Mandatory = $true)][string]$SqlAdminPassword
+  [Parameter(Mandatory = $true)][string]$SqlAdminPW
 )
 
 Install-Module -Name SqlServer -Force
