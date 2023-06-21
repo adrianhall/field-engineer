@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://azuresdkreleasepreview.blob.core.windows.net/azd/schema/azure.yaml.json
+
+name: field-engineer-dotnet
+metadata:
+  template: field-engineer-dotnet@0.0.1-beta
+services:
+  api:
+    project: src/dotnet/FieldEngineer.Api
+    language: csharp
+    host: appservice
+  web:
+    project: src/dotnet/FieldEngineer.Web
+    language: csharp
+    host: appservice

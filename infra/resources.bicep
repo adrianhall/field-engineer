@@ -1,0 +1,260 @@
+targetScope = 'resourceGroup'
+
+// =====================================================================================================================
+//     USER-DEFINED TYPES
+// =====================================================================================================================
+
+/*
+** The diagnostic settings to use for the application
+*/
+type DiagnosticSettings = {
+  @description('The name of the Log Analytics Workspace')
+  logAnalyticsWorkspaceName: string
+
+  @description('The audit log retention policy')
+  auditLogRetentionInDays: int
+
+  @description('The diagnostic log retention policy')
+  diagnosticLogRetentionInDays: int
+
+  @description('If true, enable audit logging')
+  enableAuditLogs: bool
+
+  @description('If true, enable diagnostic logging')
+  enableDiagnosticLogs: bool
+}
+
+/*
+** The environment provides shared information about the environment to produce.
+*/
+type Environment = {
+  @description('The name of the Azure Developer environment - user chosen')
+  name: string
+
+  @description('If true, we are deploying a production environment.  This is used to size resources appropriately.')
+  isProduction: bool
+
+  @description('If true, we want network isolation via a virtual network and private endpoints')
+  isNetworkIsolated: bool
+
+  @description('The default region we want the resources to be created in')
+  location: string
+
+  @description('The running user/service principal; use a blank string to not use a principalId')
+  principalId: string
+
+  @description('A token that is used in generating names for resources.  This is unique to the environment and region')
+  resourceToken: string
+
+  @description('A list of default tags to apply to all resources')
+  tags: object
+
+  @description('If true, use a common app service plan; if false, create an app service plan per app service')
+  useCommonAppServicePlan: bool
+
+  @description('If true, use an existing SQL server; if false, create a new SQL server')
+  useExistingSqlServer: bool
+}
+
+/*
+** The actual resource names to use for the infrastructure.
+*/
+type ResourceNames = {
+  apiAppService: string
+  apiAppServicePlan: string
+  apiManagedIdentity: string
+  apiManagement: string
+  appConfiguration: string
+  applicationInsights: string
+  applicationInsightsDashboard: string
+  applicationOwnerManagedIdentity: string
+  commonAppServicePlan: string
+  frontDoorEndpoint: string
+  frontDoorProfile: string
+  keyVault: string
+  logAnalyticsWorkspace: string
+  sqlDatabase: string
+  sqlServer: string
+  virtualNetworkName: string
+  webApplicationFirewall: string
+  webAppService: string
+  webAppServicePlan: string
+  webManagedIdentity: string
+}
+
+// =====================================================================================================================
+//     PARAMETERS
+// =====================================================================================================================
+
+@description('The diagnostic settings to use for the application')
+param diagnosticSettings DiagnosticSettings
+
+@description('The environment we are provisioning for')
+param environment Environment
+
+@description('The list of resource names to use.')
+param resourceNames ResourceNames
+
+@secure()
+@minLength(8)
+@description('The SQL Administrator password.')
+param sqlAdministratorPassword string
+
+@minLength(8)
+@description('The SQL Administrator username to use.')
+param sqlAdministratorUsername string
+
+// =====================================================================================================================
+//     ARCHITECTURAL COMPONENTS
+// =====================================================================================================================
+
+module common './architecture/common-resources.bicep' = {
+  name: 'arch-common'
+  params: {
+    diagnosticSettings: diagnosticSettings
+    environment: environment
+    
+    // Resource names
+    appServicePlanName: resourceNames.commonAppServicePlan
+    managedIdentityName: resourceNames.applicationOwnerManagedIdentity
+  }
+}
+
+module configuration './architecture/configuration-resources.bicep' = {
+  name: 'arch-configuration'
+  params: {
+    diagnosticSettings: diagnosticSettings
+    environment: environment
+    
+    // Resource names
+    appConfigurationName: resourceNames.appConfiguration
+    keyVaultName: resourceNames.keyVault
+
+    // Dependencies
+    managedIdentityPrincipalId: common.outputs.principal_id
+  }
+}
+
+module storage './architecture/storage-resources.bicep' = {
+  name: 'arch-storage'
+  params: {
+    diagnosticSettings: diagnosticSettings
+    environment: environment
+
+    // Resource names
+    sqlDatabaseName: resourceNames.sqlDatabase
+    sqlServerName: resourceNames.sqlServer
+
+    // Dependencies
+    managedIdentityName: common.outputs.managed_identity_name
+
+    // Settings
+    sqlAdministratorPassword: sqlAdministratorPassword
+    sqlAdministratorUsername: sqlAdministratorUsername
+    useExistingSqlServer: environment.useExistingSqlServer
+  }
+}
+
+module apiService './architecture/api-service-resources.bicep' = {
+  name: 'arch-api-service'
+  params: {
+    diagnosticSettings: diagnosticSettings
+    environment: environment
+
+    // Resource names
+    appServicePlanName: environment.useCommonAppServicePlan ? resourceNames.commonAppServicePlan : resourceNames.apiAppServicePlan
+    appServiceName: resourceNames.apiAppService
+    managedIdentityName: resourceNames.apiManagedIdentity
+    
+    // Dependencies
+    appConfigurationName: configuration.outputs.app_configuration_name
+    applicationInsightsName: resourceNames.applicationInsights
+    keyVaultName: configuration.outputs.key_vault_name
+
+    // Settings
+    useExistingAppServicePlan: environment.useCommonAppServicePlan
+  }
+}
+
+module webService './architecture/web-service-resources.bicep' = {
+  name: 'arch-web-service'
+  params: {
+    diagnosticSettings: diagnosticSettings
+    environment: environment
+
+    // Resource names
+    appServicePlanName: environment.useCommonAppServicePlan ? resourceNames.commonAppServicePlan : resourceNames.webAppServicePlan
+    appServiceName: resourceNames.webAppService
+    managedIdentityName: resourceNames.webManagedIdentity
+    
+    // Dependencies
+    appConfigurationName: configuration.outputs.app_configuration_name
+    applicationInsightsName: resourceNames.applicationInsights
+    keyVaultName: configuration.outputs.key_vault_name
+
+    // Settings
+    useExistingAppServicePlan: environment.useCommonAppServicePlan
+  }
+}
+
+module edgeSecurity './architecture/edge-security-resources.bicep' = {
+  name: 'arch-edge-security'
+  params: {
+    diagnosticSettings: diagnosticSettings
+    environment: environment
+
+    // Resource names
+    frontDoorEndpointName: resourceNames.frontDoorEndpoint
+    frontDoorProfileName: resourceNames.frontDoorProfile
+    webApplicationFirewallName: resourceNames.webApplicationFirewall
+  }
+}
+
+// =====================================================================================================================
+//     POST PROVISIONING STEP
+// =====================================================================================================================
+
+module postProvision './post-provision.bicep' = {
+  name: 'post-provision'
+  params: {
+    environment: environment
+
+    // Dependencies
+    appConfigurationName: configuration.outputs.app_configuration_name
+    frontDoorEndpointName: edgeSecurity.outputs.front_door_endpoint_name
+    frontDoorProfileName: edgeSecurity.outputs.front_door_profile_name
+    keyVaultName: configuration.outputs.key_vault_name
+    managedIdentityName: common.outputs.managed_identity_name
+    sqlDatabaseName: storage.outputs.sql_database_name
+    sqlServerName: storage.outputs.sql_server_name
+
+    // Settings
+    configurationSettings: [
+      { private: false, secret: false, name: 'FieldEngineer:Api:Endpoint',         value: apiService.outputs.uri }
+      { private: false, secret: false, name: 'FieldEngineer:Sql:ConnectionString', value: storage.outputs.connection_string }
+      { private: true,  secret: true,  name: 'FieldEngineer:Sql:AdminPassword',    value: sqlAdministratorPassword }
+      { private: true,  secret: true,  name: 'FieldEngineer:Sql:AdminUsername',    value: sqlAdministratorUsername }
+    ]
+
+    frontDoorRoutes: [
+      { name: 'api', serviceAddress: apiService.outputs.hostname, routePattern: '/api/*' }
+      { name: 'web', serviceAddress: webService.outputs.hostname, routePattern: '/*'     }
+    ]
+
+    managedIdentityPermissions: [
+      { name: common.outputs.managed_identity_name,     isOwner: true,  isStorageUser: true  }
+      { name: apiService.outputs.managed_identity_name, isOwner: false, isStorageUser: true  }
+      { name: webService.outputs.managed_identity_name, isOwner: false, isStorageUser: false }
+    ]
+
+    sqlAdministratorPassword: sqlAdministratorPassword
+    sqlAdministratorUsername: sqlAdministratorUsername
+  }
+}
+
+// =====================================================================================================================
+//     OUTPUTS
+// =====================================================================================================================
+
+output service_api_endpoints string[] = [ apiService.outputs.uri ]
+output service_web_endpoints string[] = [ edgeSecurity.outputs.uri ]
