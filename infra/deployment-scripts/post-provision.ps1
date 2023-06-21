@@ -35,8 +35,12 @@
 
 # TODO: Step 3: Use Publish-AzWebapp to deploy the Function App
 
-# TODO: Step 4: Invoke-RestMethod on Function App /api/hello to test the connection - repeat with 30 second delay for up to 15 minutes
+# TODO: Step 4: Retrieve the Function App endpoint and server key using Azure PowerShell
 
-# TODO: Step 5: For each app configuration not private, call /api/appconfig with key/value/secret and check success
+# TODO: Step 5: Invoke-RestMethod on Function App /api/hello to test the connection - repeat with 30 second delay for up to 15 minutes
 
-# TODO: Step 6: For each managed identity, call /api/sqlrole with appropriate information
+# TODO: Step 6: For each app configuration not private, call /api/appconfig with key/value/secret and check success
+
+# TODO: Step 7: For each managed identity, call /api/sqlrole with appropriate information
+
+# TODO: If there are no errors, exit(0).  Otherwise, exit(1)
