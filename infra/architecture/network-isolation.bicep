@@ -75,10 +75,11 @@ var dnsZones = [
   'privatelink${az.environment().suffixes.sqlServerHostname}'     // Azure SQL Server
 ]
 
-var configuration_subnet_name = 'configuration'
-var storage_subnet_name = 'storage'
 var api_inbound_subnet_name = 'backend-inbound'
 var api_outbound_subnet_name = 'backend-outbound'
+var configuration_subnet_name = 'configuration'
+var devops_subnet_name = 'devops'
+var storage_subnet_name = 'storage'
 var web_inbound_subnet_name = 'frontend-inbound'
 var web_outbound_subnet_name = 'frontend-outbound'
 
@@ -155,8 +156,20 @@ module virtualNetwork '../azure/network/virtual-network.bicep' = if (environment
           ]
         }
       }
-
-      // TODO: Add a subnet for Azure Front Door
+      {
+        name: devops_subnet_name
+        properties: {
+          addressPrefix: '10.0.254.0/24'
+          delegations: [
+            {
+              name: 'delegation'
+              properties: {
+                serviceName: 'Microsoft.Web/serverfarms'
+              }
+            }
+          ]
+        }
+      }
     ]
   }
 }
@@ -180,6 +193,7 @@ output virtual_network_name string = virtualNetwork.outputs.name
 output api_inbound_subnet_name string = api_inbound_subnet_name
 output api_outbound_subnet_name string = api_outbound_subnet_name
 output configuration_subnet_name string = configuration_subnet_name
+output devops_subnet_name string = devops_subnet_name
 output storage_subnet_name string = storage_subnet_name
 output web_inbound_subnet_name string = web_inbound_subnet_name
 output web_outbound_subnet_name string = web_outbound_subnet_name

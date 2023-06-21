@@ -133,15 +133,6 @@ var configurationUsers = map(filter(managedIdentityPermissions, (mi) => !mi.isOw
 // List of managed identities that can access the database.
 var databaseUsers = map(filter(managedIdentityPermissions, (mi) => !mi.isOwner && mi.isStorageUser), (mi) => mi.name)
 
-// List of configuration settings that should be placed into key vault and not references in the configuration store.
-var kvSecrets = map(filter(configurationSettings, (cs) => cs.private), (cs) => { name: cs.name, value: cs.value })
-
-// List of configuration settings that should be placed into the configuration store directly.
-var appConfigSettings = map(filter(configurationSettings, (cs) => !cs.secret && !cs.private), (cs) => { name: cs.name, value: cs.value })
-
-// List of configuration settings that should be placed into the key vault and referenced in the configuration store.
-var kvConfigSettings = map(filter(configurationSettings, (cs) => cs.secret && !cs.private), (cs) => { name: cs.name, value: cs.value })
-
 @description('Built in \'App Configuration Data Reader\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
 var appConfigurationDataReaderRoleId = '516239f1-63e1-4d78-a4de-a74fb236a071'
 
@@ -186,47 +177,6 @@ module grantDatabaseAccess './azure/database/create-sql-managed-identity.bicep' 
 }]
 
 // =====================================================================================================================
-//     INJECT CONFIGURATION SETTINGS INTO APP CONFIGURATION AND KEY VAULT
-// =====================================================================================================================
-
-module keyVaultSecret './azure/storage/key-vault-secret.bicep' = [ for secret in kvSecrets: {
-  name: 'kv-secret-${uniqueString(secret.name)}'
-  params: {
-    keyVaultName: keyVaultName
-    secretName: secret.name
-    secretValue: secret.value
-  }
-}]
-
-module appConfigurationSetting './azure/storage/app-configuration-setting.bicep' = [ for setting in appConfigSettings: {
-  name: 'app-config-${uniqueString(setting.name)}'
-  params: {
-    location: environment.location
-    tags: environment.tags
-    ownerManagedIdentityName: managedIdentityName
-    appConfigurationName: appConfigurationName
-    isSecret: false
-    keyVaultName: keyVaultName
-    settingName: setting.name
-    settingValue: setting.value
-  }
-}]
-
-module kvConfigurationSetting './azure/storage/app-configuration-setting.bicep' = [ for setting in kvConfigSettings: {
-  name: 'kv-config-${uniqueString(setting.name)}'
-  params: {
-    location: environment.location
-    tags: environment.tags
-    ownerManagedIdentityName: managedIdentityName
-    appConfigurationName: appConfigurationName
-    isSecret: true
-    keyVaultName: keyVaultName
-    settingName: setting.name
-    settingValue: setting.value
-  }
-}]
-
-// =====================================================================================================================
 //     CREATE AZURE FRONT DOOR CONFIGURATION
 // =====================================================================================================================
 
@@ -245,3 +195,10 @@ module frontDoorRoute './azure/security/front-door-route.bicep' = [ for r in fro
     } : {}
   }
 }]
+
+// =====================================================================================================================
+//     OUTPUTS - DEFERRED UNTIL POST-PROVISION SCRIPTS
+// =====================================================================================================================
+
+output configuration_settings object[] = configurationSettings
+output managed_identity_permissions object[] = managedIdentityPermissions

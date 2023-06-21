@@ -55,7 +55,7 @@ param tags object
 @description('If set, the auto-scale settings')
 param autoScaleSettings AutoScaleSettings = {}
 
-@allowed([ 'F1', 'D1', 'B1', 'B2', 'B3', 'S1', 'S2', 'S3', 'P0v3', 'P1v3', 'P2v3', 'P3v3', 'P1mv3', 'P2mv3', 'P3mv3', 'P4mv3', 'P5mv3' ])
+@allowed([ 'EP1', 'EP2', 'EP3', 'F1', 'D1', 'B1', 'B2', 'B3', 'S1', 'S2', 'S3', 'P0v3', 'P1v3', 'P2v3', 'P3v3', 'P1mv3', 'P2mv3', 'P3mv3', 'P4mv3', 'P5mv3' ])
 @description('The SKU to use for the App Service Plan')
 param sku string = 'F1'
 
@@ -77,8 +77,10 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
   sku: {
     name: sku
   }
+  kind: startsWith(sku, 'EP') ? 'elastic' : null
   properties: {
     perSiteScaling: (actualAutoScaleSettings.maxCapacity > actualAutoScaleSettings.minCapacity)
+    maximumElasticWorkerCount: startsWith(sku, 'EP') ? actualAutoScaleSettings.maxCapacity : null
   }
 }
 

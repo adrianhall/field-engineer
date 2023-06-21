@@ -68,6 +68,9 @@ param applicationInsightsName string = ''
 param applicationOwnerManagedIdentityName string = ''
 param commonAppServicePlanName string = ''
 param dashboardName string = ''
+param devopsAppServicePlanName string = ''
+param devopsFunctionAppName string = ''
+param devopsStorageAccountName string = ''
 param frontDoorEndpointName string = ''
 param frontDoorProfileName string = ''
 param keyVaultName string = ''
@@ -124,6 +127,9 @@ var resourceNames = {
   applicationInsightsDashboard: !empty(dashboardName) ? dashboardName : 'dashboard-${resourceToken}'
   applicationOwnerManagedIdentity: !empty(applicationOwnerManagedIdentityName) ? applicationOwnerManagedIdentityName : 'mi-appowner-${resourceToken}'
   commonAppServicePlan: !empty(commonAppServicePlanName) ? commonAppServicePlanName : 'asp-common-${resourceToken}'
+  devopsAppServicePlan: !empty(devopsAppServicePlanName) ? devopsAppServicePlanName : 'asp-devops-${resourceToken}'
+  devopsFunctionApp: !empty(devopsFunctionAppName) ? devopsFunctionAppName : 'fn-devops-${resourceToken}'
+  devopsStorageAccount: !empty(devopsStorageAccountName) ? devopsStorageAccountName: 'devopsstore${resourceToken}'
   frontDoorEndpoint: !empty(frontDoorEndpointName) ? frontDoorEndpointName : 'afd-${resourceToken}'
   frontDoorProfile: !empty(frontDoorProfileName) ? frontDoorProfileName : 'afd-profile-${resourceToken}'
   keyVault: !empty(keyVaultName) ? keyVaultName : 'kv-${resourceToken}'
@@ -194,3 +200,6 @@ module resources './resources.bicep' = {
 
 output service_api_endpoints string[] = resources.outputs.service_api_endpoints
 output service_web_endpoints string[] = resources.outputs.service_web_endpoints
+
+output postprovision_configuration object[] = resources.outputs.postprovision_configuration
+output postprovision_managed_identities object[] = resources.outputs.postprovision_managed_identities

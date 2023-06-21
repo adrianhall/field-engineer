@@ -1,8 +1,12 @@
 # yaml-language-server: $schema=https://azuresdkreleasepreview.blob.core.windows.net/azd/schema/azure.yaml.json
 
-name: field-engineer-dotnet
+name: field-engineer
 metadata:
-  template: field-engineer-dotnet@0.0.1-beta
+  template: field-engineer@0.0.1-beta
+hooks:
+  postprovision:
+    shell: pwsh
+    run: ./infra/deployment-scripts/post-provision.ps1
 services:
   api:
     project: src/dotnet/FieldEngineer.Api

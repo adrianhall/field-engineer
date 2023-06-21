@@ -69,6 +69,9 @@ type ResourceNames = {
   applicationInsightsDashboard: string
   applicationOwnerManagedIdentity: string
   commonAppServicePlan: string
+  devopsAppServicePlan: string
+  devopsFunctionApp: string
+  devopsStorageAccount: string
   frontDoorEndpoint: string
   frontDoorProfile: string
   keyVault: string
@@ -249,6 +252,38 @@ module edgeSecurity './architecture/edge-security-resources.bicep' = {
   }
 }
 
+/*
+** During the post-provision step, we need to do some things within the confines of the
+** VNET.  This module creates a set of temporary resources that we can use to do that.
+*/
+module devops './architecture/devops-resources.bicep' = {
+  name: 'arch-devops-resources'
+  params: {
+    diagnosticSettings: diagnosticSettings
+    environment: environment
+    
+    // Resource names
+    appServicePlanName: resourceNames.devopsAppServicePlan
+    functionAppName: resourceNames.devopsFunctionApp
+    storageAccountName: resourceNames.devOpsStorageAccount
+
+    // Dependencies
+    appConfigurationName: configuration.outputs.app_configuration_name
+    applicationInsightsName: resourceNames.applicationInsights
+    keyVaultName: configuration.outputs.key_vault_name
+    managedIdentityName: common.outputs.managed_identity_name
+    sqlServerName: storage.outputs.sql_server_name
+    sqlDatabaseName: storage.outputs.sql_database_name
+
+    // Network isolation settings
+    networkIsolationSettings: environment.isNetworkIsolated ? {
+      privateEndpointSubnetName: network.outputs.web_inbound_subnet_name
+      serviceConnectionSubnetName: network.outputs.web_outbound_subnet_name
+      virtualNetworkName: network.outputs.virtual_network_name
+    } : {}
+  }
+}
+
 // =====================================================================================================================
 //     POST PROVISIONING STEP
 // =====================================================================================================================
@@ -297,3 +332,14 @@ module postProvision './post-provision.bicep' = {
 
 output service_api_endpoints string[] = [ apiService.outputs.uri ]
 output service_web_endpoints string[] = [ edgeSecurity.outputs.uri ]
+
+/*
+** Values required by the post-provisioning hook.
+*/
+output postprovision_configuration object[] = postProvision.outputs.configuration_settings
+output postprovision_managed_identities object[] = postProvision.outputs.managed_identity_permissions
+output postprovision_settings object = {
+  appServicePlanName: devops.outputs.app_service_plan_name
+  functionAppName: devops.outputs.function_app_name
+  storageAccountName: devops.outputs.storage_account_name
+}
