@@ -201,5 +201,6 @@ module resources './resources.bicep' = {
 output service_api_endpoints string[] = resources.outputs.service_api_endpoints
 output service_web_endpoints string[] = resources.outputs.service_web_endpoints
 
-output postprovision_configuration object[] = resources.outputs.postprovision_configuration
-output postprovision_managed_identities object[] = resources.outputs.postprovision_managed_identities
+output postprovision_resources object = resources.outputs.postprovision_settings.resources
+output postprovision_configsettings object[] = resources.outputs.postprovision_settings.configuration
+output postprovision_dbusers string[] = resources.outputs.postprovision_settings.databaseUsers

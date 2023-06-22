@@ -15,6 +15,10 @@ param virtualNetworkName string
 //     AZURE RESOURCES
 // =====================================================================================================================
 
+resource virtualNetwork 'Microsoft.Network/virtualNetworks@2022-11-01' existing = {
+  name: virtualNetworkName
+}
+
 resource privateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
   name: name
   location: 'global'
@@ -27,7 +31,7 @@ resource privateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = {
     properties: {
       registrationEnabled: false
       virtualNetwork: {
-        id: resourceId('Microsoft.Network/virtualNetworks', virtualNetworkName)
+        id: virtualNetwork.id
       }
     }
   }

@@ -99,11 +99,8 @@ param managedIdentityName string
 @description('The name of the Application Insights resource')
 param applicationInsightsName string
 
-@description('The name of the SQL Database resource to create')
-param sqlDatabaseName string
-
-@description('The name of the SQL Server resource to use or create')
-param sqlServerName string
+@description('The SQL Connection String to use')
+param sqlConnectionString string
 
 /*
 ** Service settings
@@ -138,7 +135,8 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
 module appServicePlan '../azure/hosting/app-service-plan.bicep' = {
   name: '${servicePrefix}-app-service-plan'
   params: {
-    diagnosticSettings: diagnosticSettings
+    // Disable the diagnostic settings for this app service plan - we don't need it.
+    diagnosticSettings: union(diagnosticSettings, { logAnalyticsWorkspaceName: ''})
     location: environment.location
     name: appServicePlanName
     tags: moduleTags
@@ -194,11 +192,10 @@ module functionApp '../azure/hosting/function-app.bicep' = {
       'Azure:KeyVault:Endpoint': keyVault.properties.vaultUri
 
       // SQL Database and Server
-      'Azure:Sql:DatabaseName': sqlDatabaseName
-      'Azure:Sql:ServerName': sqlServerName
+      'Azure:Sql:ConnectionString': sqlConnectionString
     }
     enablePublicNetworkAccess: true
-    runtime: 'node'
+    runtime: 'dotnet'
   }
 }
 

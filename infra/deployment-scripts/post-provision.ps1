@@ -29,18 +29,75 @@
     not do this mechanism.  Instead, use an appropriate CI/CD workflow to do the same thing.
 #>
 
-# TODO: Step 1: Grab the data from the azure developer CLI and convert to objects
+$scriptDirectory = $MyInvocation.MyCommand.Path | Split-Path -Parent
+$functionAppDirectory = Join-Path -Path $scriptDirectory -ChildPath './function-app'
+$artifactsDirectory = Join-Path -Path $scriptDirectory -ChildPath './build'
 
-# TODO: Step 2: Build and ZIP up the deployment-scripts Function App
+# Create the artifacts directory if it doesn't exist.  Will throw an error if build is a file.
+New-Item -Path $artifactsDirectory -ItemType Directory -Force
 
-# TODO: Step 3: Use Publish-AzWebapp to deploy the Function App
+# Step 1: Grab the data from the azure developer CLI and convert to objects
 
-# TODO: Step 4: Retrieve the Function App endpoint and server key using Azure PowerShell
+@"
 
-# TODO: Step 5: Invoke-RestMethod on Function App /api/hello to test the connection - repeat with 30 second delay for up to 15 minutes
+### Reading current Azure Developer CLI output.
 
-# TODO: Step 6: For each app configuration not private, call /api/appconfig with key/value/secret and check success
+"@ | Write-Output
+$azdConfig = azd env get-values -o json | ConvertFrom-Json -AsHashtable
+$resources = $azdConfig['postprovision_resources'] | ConvertFrom-Json -AsHashtable
+
+$functionAppName = $resources['functionApp']
+$resourceGroupName = $resources['resourceGroup']
+
+@"
+  Resource Group: $resourceGroupName
+  Function App: $functionAppName
+  Script directory: $scriptDirectory
+  Function App location: $functionAppDirectory
+  Artifacts Directory: $artifactsDirectory
+"@ | Write-Output
+
+# Step 2: Build and ZIP up the deployment-scripts Function App
+
+@"
+
+### Building Azure Function App and creating deployment package.
+
+"@ | Write-Output
+$functionArtifact = Join-Path -Path $artifactsDirectory -ChildPath './deploypkg.zip'
+Push-Location -Path $functionAppDirectory
+dotnet publish -c Release
+Compress-Archive -Path * -DestinationPath $functionArtifact -Force
+Pop-Location
+
+# Step 3: Use Publish-AzWebapp to deploy the Function App
+
+@"
+
+### Publishing Azure Function App deployment package.
+
+"@ | Write-Output
+$functionApp = Get-AzWebApp -ResourceGroupName $resourceGroupName -Name $functionAppName
+Publish-AzWebApp -ResourceGroupName $resourceGroupName -WebApp $functionApp -ArchivePath $functionArtifact -Force
+
+# Step 4: Retrieve the Function App endpoint and server key using Azure PowerShell
+$defaultHostName = $functionApp.DefaultHostName
+$functionAppId = $functionApp.Id
+
+$appconfigTrigger = "AppConfiguration"
+$appconfigKey = (Invoke-AzResourceAction -ResourceId "$functionAppId/functions/$appConfigTrigger" -Action listkeys -Force).default
+$appconfigUrl = "https://$DefaultHostName/api/$appconfigTrigger" + "?code=" + $appconfigKey
+"App Configuration URL: $appconfigUrl" | Write-Output
+
+$sqlroleTrigger = "SqlRole"
+$sqlroleKey = (Invoke-AzResourceAction -ResourceId "$functionAppId/functions/$sqlroleTrigger" -Action listkeys -Force).default
+$sqlroleUrl = "https://$DefaultHostName/api/$sqlroleTrigger" + "?code=" + $sqlroleKey
+"SQL Role URL: $sqlroleUrl" | Write-Output
+
+# TODO: Step 5: For each app configuration not private, call /api/appconfig with key/value/secret and check success
 
 # TODO: Step 7: For each managed identity, call /api/sqlrole with appropriate information
+
+# TODO: Step 8: Approve the private endpoints (if they exist) from Azure Front Door to the App Service
 
 # TODO: If there are no errors, exit(0).  Otherwise, exit(1)

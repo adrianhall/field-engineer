@@ -66,6 +66,12 @@ param sku string = 'F1'
 var defaultAutoScaleSettings = { minCapacity: 1, maxCapacity: 1, scaleInThreshold: 40, scaleOutThreshold: 75 }
 var actualAutoScaleSettings = union(autoScaleSettings, defaultAutoScaleSettings)
 
+var servicePlanProperties = startsWith(sku, 'EP') ? {
+  maximumElasticWorkerCount: actualAutoScaleSettings.maxCapacity
+} : {
+  perSiteScaling: (actualAutoScaleSettings.maxCapacity > actualAutoScaleSettings.minCapacity)
+}
+
 // =====================================================================================================================
 //     AZURE RESOURCES
 // =====================================================================================================================
@@ -77,11 +83,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
   sku: {
     name: sku
   }
-  kind: startsWith(sku, 'EP') ? 'elastic' : null
-  properties: {
-    perSiteScaling: (actualAutoScaleSettings.maxCapacity > actualAutoScaleSettings.minCapacity)
-    maximumElasticWorkerCount: startsWith(sku, 'EP') ? actualAutoScaleSettings.maxCapacity : null
-  }
+  kind: startsWith(sku, 'EP') ? 'elastic' : 'app'
+  properties: servicePlanProperties
 }
 
 resource autoScaleRule 'Microsoft.Insights/autoscalesettings@2022-10-01' = if (actualAutoScaleSettings.maxCapacity > actualAutoScaleSettings.minCapacity) {

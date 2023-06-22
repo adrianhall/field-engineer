@@ -72,7 +72,7 @@ param enablePublicNetworkAccess bool = true
 
 @allowed([ 'node', 'dotnet', 'java' ])
 @description('The language worker runtime to load in the function app.')
-param runtime string = 'node'
+param runtime string
 
 // =====================================================================================================================
 //     CALCULATED VARIABLES
@@ -80,17 +80,10 @@ param runtime string = 'node'
 
 // For a list of all categories that this resource supports, see: https://learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories
 var auditLogCategories = diagnosticSettings.enableAuditLogs ? [
-  'AppServiceAntivirusScanAuditLogs'
-  'AppServiceAuditLogs'
-  'AppServiceFileAuditLogs'
-  'AppServiceIPSecAuditLogs'
+
 ] : []
 
 var diagnosticLogCategories = diagnosticSettings.enableDiagnosticLogs ? [
-  'AppServiceAppLogs'
-  'AppServiceConsoleLogs'
-  'AppServiceHTTPLogs'
-  'AppServicePlatformLogs'
   'FunctionAppLogs'
 ] : []
 
@@ -150,7 +143,7 @@ resource functionApp 'Microsoft.Web/sites@2022-09-01' = {
   name: name
   location: location
   tags: tags
-  kind: 'web'
+  kind: 'functionapp'
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {

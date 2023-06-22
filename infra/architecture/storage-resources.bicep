@@ -162,4 +162,4 @@ module sqlDatabasePrivateEndpoint '../azure/network/private-endpoint.bicep' = if
 output sql_database_name string = sqlDatabase.outputs.name
 output sql_server_name string = useExistingSqlServer ? sqlServerName : sqlServer.outputs.name
 
-output connection_string string = sqlDatabase.outputs.connection_string
+output sql_connection_string string = sqlDatabase.outputs.connection_string

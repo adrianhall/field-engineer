@@ -272,13 +272,12 @@ module devops './architecture/devops-resources.bicep' = {
     applicationInsightsName: resourceNames.applicationInsights
     keyVaultName: configuration.outputs.key_vault_name
     managedIdentityName: common.outputs.managed_identity_name
-    sqlServerName: storage.outputs.sql_server_name
-    sqlDatabaseName: storage.outputs.sql_database_name
+    sqlConnectionString: storage.outputs.sql_connection_string
 
     // Network isolation settings
     networkIsolationSettings: environment.isNetworkIsolated ? {
-      privateEndpointSubnetName: network.outputs.web_inbound_subnet_name
-      serviceConnectionSubnetName: network.outputs.web_outbound_subnet_name
+      privateEndpointSubnetName: '' // We need a public endpoint for the devops resources to work with AZD.
+      serviceConnectionSubnetName: network.outputs.devops_subnet_name
       virtualNetworkName: network.outputs.virtual_network_name
     } : {}
   }
@@ -298,14 +297,11 @@ module postProvision './post-provision.bicep' = {
     frontDoorProfileName: edgeSecurity.outputs.front_door_profile_name
     keyVaultName: configuration.outputs.key_vault_name
     keyVaultUri: configuration.outputs.key_vault_uri
-    managedIdentityName: common.outputs.managed_identity_name
-    sqlDatabaseName: storage.outputs.sql_database_name
-    sqlServerName: storage.outputs.sql_server_name
 
     // Settings
     configurationSettings: [
       { private: false, secret: false, name: 'FieldEngineer:Api:Endpoint',         value: apiService.outputs.uri }
-      { private: false, secret: false, name: 'FieldEngineer:Sql:ConnectionString', value: storage.outputs.connection_string }
+      { private: false, secret: false, name: 'FieldEngineer:Sql:ConnectionString', value: storage.outputs.sql_connection_string }
       { private: true,  secret: true,  name: 'FieldEngineer:Sql:AdminPassword',    value: sqlAdministratorPassword }
       { private: true,  secret: true,  name: 'FieldEngineer:Sql:AdminUsername',    value: sqlAdministratorUsername }
     ]
@@ -320,9 +316,6 @@ module postProvision './post-provision.bicep' = {
       { name: apiService.outputs.managed_identity_name, isOwner: false, isStorageUser: true  }
       { name: webService.outputs.managed_identity_name, isOwner: false, isStorageUser: false }
     ]
-
-    sqlAdministratorPassword: sqlAdministratorPassword
-    sqlAdministratorUsername: sqlAdministratorUsername
   }
 }
 
@@ -336,10 +329,13 @@ output service_web_endpoints string[] = [ edgeSecurity.outputs.uri ]
 /*
 ** Values required by the post-provisioning hook.
 */
-output postprovision_configuration object[] = postProvision.outputs.configuration_settings
-output postprovision_managed_identities object[] = postProvision.outputs.managed_identity_permissions
 output postprovision_settings object = {
-  appServicePlanName: devops.outputs.app_service_plan_name
-  functionAppName: devops.outputs.function_app_name
-  storageAccountName: devops.outputs.storage_account_name
+  resources: {
+    appServicePlan: devops.outputs.app_service_plan_name
+    functionApp: devops.outputs.function_app_name
+    resourceGroup: resourceGroup().name
+    storageAccount: devops.outputs.storage_account_name
+  }
+  configuration: postProvision.outputs.configuration_settings
+  databaseUsers: postProvision.outputs.database_users
 }

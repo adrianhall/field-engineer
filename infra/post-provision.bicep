@@ -95,15 +95,6 @@ param frontDoorEndpointName string
 @description('The name of the Front Door Profile resource to use')
 param frontDoorProfileName string
 
-@description('The name of the user-defined managed identity that has permission to write to the configuration and database layer')
-param managedIdentityName string
-
-@description('The name of the SQL Database resource to use')
-param sqlDatabaseName string
-
-@description('The name of the SQL Server resource to use')
-param sqlServerName string
-
 /*
 ** Settings
 */
@@ -115,13 +106,6 @@ param frontDoorRoutes FrontDoorRoute[]
 
 @description('The list of permissions to create for managed identities')
 param managedIdentityPermissions ManagedIdentityPermission[]
-
-@secure()
-@description('The SQL Administrator password.')
-param sqlAdministratorPassword string
-
-@description('The SQL Administrator username to use.')
-param sqlAdministratorUsername string
 
 // =====================================================================================================================
 //     CALCULATED VARIABLES
@@ -145,7 +129,7 @@ var keyVaultSecrets = map(filter(configurationSettings, (cs) => cs.secret || cs.
 var appConfigSettings = map(filter(configurationSettings, (cs) => !cs.private), (cs) => {
   name: cs.name
   value: cs.secret ? '{"uri":"${keyVaultUri}secrets/${replace(cs.name,':','--')}"}' : cs.value
-  content_type: 'application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8'
+  content_type: cs.secret ? 'application/vnd.microsoft.appconfig.keyvaultref+json;charset=utf-8' : 'text/plain;charset=utf-8'
 })
 
 @description('Built in \'App Configuration Data Reader\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
@@ -173,21 +157,6 @@ module grantSecretsUserRole './azure/identity/role-assignment.bicep' = [ for mi 
     managedIdentityName: mi
     resourceToken: environment.resourceToken
     roleId: keyVaultSecretsUserRoleId
-  }
-}]
-
-module grantDatabaseAccess './azure/database/create-sql-managed-identity.bicep' = [ for mi in databaseUsers: {
-  name: 'grant-database-access-to-${mi}'
-  params: {
-    name: 'sql-managed-identity-${mi}'
-    location: environment.location
-    tags: environment.tags
-    administratorManagedIdentityName: managedIdentityName
-    managedIdentityName: mi
-    sqlAdministratorPassword: sqlAdministratorPassword
-    sqlAdministratorUsername: sqlAdministratorUsername
-    sqlDatabaseName: sqlDatabaseName
-    sqlServerName: sqlServerName
   }
 }]
 
@@ -229,4 +198,4 @@ module frontDoorRoute './azure/security/front-door-route.bicep' = [ for r in fro
 // =====================================================================================================================
 
 output configuration_settings object[] = appConfigSettings
-output managed_identity_permissions object[] = managedIdentityPermissions
+output database_users string[] = databaseUsers
