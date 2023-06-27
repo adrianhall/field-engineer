@@ -198,9 +198,6 @@ module resources './resources.bicep' = {
 //     OUTPUTS
 // =====================================================================================================================
 
+output resource_group string = rg.name
 output service_api_endpoints string[] = resources.outputs.service_api_endpoints
 output service_web_endpoints string[] = resources.outputs.service_web_endpoints
-
-output postprovision_resources object = resources.outputs.postprovision_settings.resources
-output postprovision_configsettings object[] = resources.outputs.postprovision_settings.configuration
-output postprovision_dbusers string[] = resources.outputs.postprovision_settings.databaseUsers

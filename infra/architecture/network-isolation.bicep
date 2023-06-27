@@ -78,7 +78,6 @@ var dnsZones = [
 var api_inbound_subnet_name = 'backend-inbound'
 var api_outbound_subnet_name = 'backend-outbound'
 var configuration_subnet_name = 'configuration'
-var devops_subnet_name = 'devops'
 var storage_subnet_name = 'storage'
 var web_inbound_subnet_name = 'frontend-inbound'
 var web_outbound_subnet_name = 'frontend-outbound'
@@ -86,6 +85,32 @@ var web_outbound_subnet_name = 'frontend-outbound'
 // =====================================================================================================================
 //     AZURE RESOURCES
 // =====================================================================================================================
+
+// TODO: NSG for configuration (nsg-01)
+// * Allow inbound from frontend-outbound subnet
+// * Allow inbound from backend-outbound subnet
+// * Allow all outbound traffic
+
+// TODO: NSG for storage (nsg-02)
+// * Allow inbound from backend-outbound subnet
+// * Allow all outbound traffic
+
+// TODO: NSG for frontend-inbound (nsg-03)
+// * Allow inbound from backend-outbound subnet
+// * Allow inbound from Azure Front Door
+// * Allow all outbound traffic
+
+// TODO: NSG for frontend-outbound (nsg-00)
+// * Disallow all inbound traffic
+// * Allow all outbound traffic
+
+// TODO: NSG for backend-inbound (nsg-04)
+// * Allow inbound from Azure Front Door
+// * Allow all outbound traffic
+
+// TODO: NSG for backend-outbound (nsg-00)
+// * Disallow all inbound traffic
+// * Allow all outbound traffic
 
 module virtualNetwork '../azure/network/virtual-network.bicep' = if (environment.isNetworkIsolated) {
   name: 'virtual-network'
@@ -156,20 +181,6 @@ module virtualNetwork '../azure/network/virtual-network.bicep' = if (environment
           ]
         }
       }
-      {
-        name: devops_subnet_name
-        properties: {
-          addressPrefix: '10.0.254.0/24'
-          delegations: [
-            {
-              name: 'delegation'
-              properties: {
-                serviceName: 'Microsoft.Web/serverfarms'
-              }
-            }
-          ]
-        }
-      }
     ]
   }
 }
@@ -183,6 +194,8 @@ module privateDnsZones '../azure/network/private-dns-zone.bicep' = [ for zone in
   }
 }]
 
+
+
 // =====================================================================================================================
 //     OUTPUTS
 // =====================================================================================================================
@@ -193,7 +206,6 @@ output virtual_network_name string = virtualNetwork.outputs.name
 output api_inbound_subnet_name string = api_inbound_subnet_name
 output api_outbound_subnet_name string = api_outbound_subnet_name
 output configuration_subnet_name string = configuration_subnet_name
-output devops_subnet_name string = devops_subnet_name
 output storage_subnet_name string = storage_subnet_name
 output web_inbound_subnet_name string = web_inbound_subnet_name
 output web_outbound_subnet_name string = web_outbound_subnet_name

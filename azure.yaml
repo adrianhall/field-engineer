@@ -3,10 +3,6 @@
 name: field-engineer
 metadata:
   template: field-engineer@0.0.1-beta
-hooks:
-  postprovision:
-    shell: pwsh
-    run: ./infra/deployment-scripts/post-provision.ps1
 services:
   api:
     project: src/dotnet/FieldEngineer.Api

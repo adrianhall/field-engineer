@@ -123,7 +123,7 @@ module common './architecture/common-resources.bicep' = {
   }
 }
 
-module network './architecture/network-isolation.bicep' = {
+module network './architecture/network-isolation.bicep' = if (environment.isNetworkIsolated) {
   name: 'arch-network-isolation'
   params: {
     diagnosticSettings: diagnosticSettings
@@ -252,37 +252,6 @@ module edgeSecurity './architecture/edge-security-resources.bicep' = {
   }
 }
 
-/*
-** During the post-provision step, we need to do some things within the confines of the
-** VNET.  This module creates a set of temporary resources that we can use to do that.
-*/
-module devops './architecture/devops-resources.bicep' = {
-  name: 'arch-devops-resources'
-  params: {
-    diagnosticSettings: diagnosticSettings
-    environment: environment
-    
-    // Resource names
-    appServicePlanName: resourceNames.devopsAppServicePlan
-    functionAppName: resourceNames.devopsFunctionApp
-    storageAccountName: resourceNames.devopsStorageAccount
-
-    // Dependencies
-    appConfigurationName: configuration.outputs.app_configuration_name
-    applicationInsightsName: resourceNames.applicationInsights
-    keyVaultName: configuration.outputs.key_vault_name
-    managedIdentityName: common.outputs.managed_identity_name
-    sqlConnectionString: storage.outputs.sql_connection_string
-
-    // Network isolation settings
-    networkIsolationSettings: environment.isNetworkIsolated ? {
-      privateEndpointSubnetName: '' // We need a public endpoint for the devops resources to work with AZD.
-      serviceConnectionSubnetName: network.outputs.devops_subnet_name
-      virtualNetworkName: network.outputs.virtual_network_name
-    } : {}
-  }
-}
-
 // =====================================================================================================================
 //     POST PROVISIONING STEP
 // =====================================================================================================================
@@ -293,6 +262,7 @@ module postProvision './post-provision.bicep' = {
     environment: environment
 
     // Dependencies
+    appConfigurationName: configuration.outputs.app_configuration_name
     frontDoorEndpointName: edgeSecurity.outputs.front_door_endpoint_name
     frontDoorProfileName: edgeSecurity.outputs.front_door_profile_name
     keyVaultName: configuration.outputs.key_vault_name
@@ -325,17 +295,3 @@ module postProvision './post-provision.bicep' = {
 
 output service_api_endpoints string[] = [ apiService.outputs.uri ]
 output service_web_endpoints string[] = [ edgeSecurity.outputs.uri ]
-
-/*
-** Values required by the post-provisioning hook.
-*/
-output postprovision_settings object = {
-  resources: {
-    appServicePlan: devops.outputs.app_service_plan_name
-    functionApp: devops.outputs.function_app_name
-    resourceGroup: resourceGroup().name
-    storageAccount: devops.outputs.storage_account_name
-  }
-  configuration: postProvision.outputs.configuration_settings
-  databaseUsers: postProvision.outputs.database_users
-}

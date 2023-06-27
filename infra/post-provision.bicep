@@ -83,6 +83,9 @@ param environment Environment
 /*
 ** Dependencies
 */
+@description('The name of the App Configuration resource to use')
+param appConfigurationName string
+
 @description('The name of the Key Vault resource to use')
 param keyVaultName string
 
@@ -173,6 +176,25 @@ module kvSecrets './azure/storage/key-vault-secret.bicep' = [ for kv in keyVault
   }
 }]
 
+/*
+** App Configuration does the key-value setting on the data plane, which is not accessible from
+** ARM when using network isolation.  We do this a different way when network isolated.
+*/
+module appConfigKeyValues './azure/storage/app-configuration-keyvalue.bicep' = [ for cs in appConfigSettings: if (!environment.isNetworkIsolated) {
+  name: 'appconfig-keyvalue-${uniqueString(cs.name)}'
+  params: {
+    appConfigurationName: appConfigurationName
+    key: cs.name
+    value: cs.value
+    contentType: cs.content_type
+  }
+}]
+
+/*
+** TODO: When running with network isolation, we use the Azure CLI inside an Azure Container Instance
+**  to set the key values.  The ACI is not available unless network isolated.
+*/
+
 // =====================================================================================================================
 //     CREATE AZURE FRONT DOOR CONFIGURATION
 // =====================================================================================================================
@@ -194,7 +216,7 @@ module frontDoorRoute './azure/security/front-door-route.bicep' = [ for r in fro
 }]
 
 // =====================================================================================================================
-//     OUTPUTS - DEFERRED UNTIL POST-PROVISION SCRIPTS
+//     OUTPUTS
 // =====================================================================================================================
 
 output configuration_settings object[] = appConfigSettings
