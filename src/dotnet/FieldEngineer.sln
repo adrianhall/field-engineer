@@ -3,9 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldEngineer.Api", "FieldEngineer.Api\FieldEngineer.Api.csproj", "{EB1CB3A3-2945-475C-84D6-1160C418AFB7}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldEngineer.Web", "FieldEngineer.Web\FieldEngineer.Web.csproj", "{D1AE01B1-3F3F-47D0-905D-71515DE026E2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FieldEngineer.Api", "FieldEngineer.Api\FieldEngineer.Api.csproj", "{8343B041-63DB-4AB3-B19A-AB05C3D39D13}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -16,13 +14,9 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{EB1CB3A3-2945-475C-84D6-1160C418AFB7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{EB1CB3A3-2945-475C-84D6-1160C418AFB7}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{EB1CB3A3-2945-475C-84D6-1160C418AFB7}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{EB1CB3A3-2945-475C-84D6-1160C418AFB7}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D1AE01B1-3F3F-47D0-905D-71515DE026E2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D1AE01B1-3F3F-47D0-905D-71515DE026E2}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D1AE01B1-3F3F-47D0-905D-71515DE026E2}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D1AE01B1-3F3F-47D0-905D-71515DE026E2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8343B041-63DB-4AB3-B19A-AB05C3D39D13}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8343B041-63DB-4AB3-B19A-AB05C3D39D13}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8343B041-63DB-4AB3-B19A-AB05C3D39D13}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8343B041-63DB-4AB3-B19A-AB05C3D39D13}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

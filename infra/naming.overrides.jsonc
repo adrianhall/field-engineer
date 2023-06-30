@@ -1,0 +1,78 @@
+{
+    /*
+    ** You can override any resource name with this file.  They are all listed in
+    ** this file.  Just un-comment the appropriate line and change the value.
+    */
+    
+    /*
+    ** Hub Networking Resources
+    */
+    // "hubResourceGroup": "",
+    // "hubBastionPublicIpAddress": "",
+    // "hubBastionSubnet": "",
+    // "hubBastion": "",
+    // "hubFirewallPublicIpAddress": "",
+    // "hubFirewallSubnet": "",
+    // "hubFirewallSubnet": "",
+    // "hubRouteTable": "",
+    // "hubVirtualNetwork": "",
+
+    /*
+    ** Spoke Networking Resources
+    */
+    // "spokeApiInboundSubnet": "",
+    // "spokeApiOutboundSubnet": "",
+    // "spokeBuildAgentSubnet": "",
+    // "spokeConfigurationSubnet": "",
+    // "spokeJumpboxSubnet": "",
+    // "spokeStorageSubnet": "",
+    // "spokeWebInboundSubnet": "",
+    // "spokeWebOutboundSubnet": "",
+    // "spokeResourceGroup": "",
+    // "spokeVirtualNetwork": "",
+
+    /*
+    ** Shared Monitoring Resources
+    */
+    // "applicationInsights": "",
+    // "applicationInsightsDashboard": "",
+    // "logAnalyticsWorkspace": "",
+
+    /*
+    ** Workload Specific Resources
+    */
+    // "apiAppService": "",
+    // "apiAppServicePlan": "",
+    // "apiManagedIdentity": "",
+    // "apiPrivateEndpoint": "",
+    // "appConfiguration": "",
+    // "appConfigurationPrivateEndpoint": "",
+    // "frontDoorEndpoint": "",
+    // "frontDoorProfile": "",
+    // "keyVault": "",
+    // "keyVaultPrivateEndpoint": "",
+    // "ownerManagedIdentity": "",
+    // "resourceGroup": "",
+    // "sqlDatabase": "",
+    // "sqlDatabasePrivateEndpoint": "",
+    // "sqlServer": "",
+    // "sqlResourceGroup": "",
+    // "webAppService": "",
+    // "webAppServicePlan": "",
+    // "webApplicationFirewall": "",
+    // "webManagedIdentity": "",
+    // "webPrivateEndpoint": "",
+
+    /*
+    ** Administrative Resources - Jumpbox, Build Agents, etc.
+    */
+    // "buildAgent": "",
+    // "buildAgentPublicIpAddress": "",
+    // "jumpbox": "",
+    // "jumpboxPublicIpAddress": "",
+
+    /*
+    ** End of file - don't remove the next line as it signifies the end.
+    */
+    "__end__": ""
+}

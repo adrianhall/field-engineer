@@ -2,6 +2,18 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
+        "adminUsername": {
+            "value": "${JUMPBOX_USERNAME=workloadadmin}"
+        },
+        "adminPassword": {
+            "value": "${JUMPBOX_PASSWORD}"
+        },
+        "deployHubVirtualNetwork": {
+            "value": "${DEPLOY_HUB_NETWORK=false}"
+        },
+        "deployJumpbox": {
+            "value": "${DEPLOY_JUMPBOX=true}"
+        },
         "environmentName": {
             "value": "${AZURE_ENV_NAME}"
         },
@@ -22,6 +34,9 @@
         },
         "principalId": {
             "value": "${AZURE_PRINCIPAL_ID}"
+        },
+        "principalType": {
+            "value": "${AZURE_PRINCIPAL_TYPE=User}"
         }
     }
 }
