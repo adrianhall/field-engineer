@@ -62,18 +62,6 @@ type DiagnosticSettings = {
   enableDiagnosticLogs: bool
 }
 
-/*
-** From infra/_types/NetworkSettings.bicep
-*/
-@description('Type that describes the network settings for a single network')
-type NetworkSettings = {
-  @description('The address space for the virtual network')
-  addressSpace: string
-
-  @description('The list of subnets, with their associated address prefixes')
-  addressPrefixes: object
-}
-
 // ========================================================================
 // PARAMETERS
 // ========================================================================
@@ -89,68 +77,84 @@ param diagnosticSettings DiagnosticSettings
 @description('The name of the Azure region that will be used for the deployment.')
 param location string
 
-@description('The network settings for the hub network')
-param networkSettings NetworkSettings
-
 @description('The list of resource names to use')
 param resourceNames object
 
 /*
-** Module specific settings
+** Dependencies
 */
-@description('The address spaces allowed to connect through the firewall.')
-param allowedEgressAddresses string[] = []
+@description('The name of the Application Insights resource.')
+param applicationInsightsName string
 
-@description('The address space allowed unrestricted outbound access through the firewall.')
-param unrestrictedEgressAddresses string[] = []
+@description('The resource group holding the Azure Monitor resources.')
+param azureMonitorResourceGroupName string
+
+@description('The ID of the Log Analytics Workspace to send audit and diagnostic data to.')
+param logAnalyticsWorkspaceId string
+
+@description('The resource group holding the spoke network resources.')
+param networkingResourceGroupName string
+
+@description('The subnets to use when network isolated.')
+param subnets object
+
+@description('The name of the virtual network holding the subnets.')
+param virtualNetworkName string
+
+@description('The workload resource group name.')
+param workloadResourceGroupName string
+
+/*
+** Settings
+*/
+@secure()
+@minLength(8)
+@description('The password for the SQL Administrator; used if creating the server')
+param sqlAdministratorPassword string
+
+@minLength(8)
+@description('The username for the SQL Administrator; used if creating the server')
+param sqlAdministratorUsername string
 
 // ========================================================================
 // VARIABLES
 // ========================================================================
 
-var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'hub-network' })
+var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'workload' })
 
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
 
-resource hubResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = if (deploymentSettings.deployHubNetwork) {
-  name: resourceNames.hubResourceGroup
-  location: location
-  tags: moduleTags
+resource workloadResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' existing = {
+  name: workloadResourceGroupName
 }
 
 // ========================================================================
 // FEATURE MODULES
 // ========================================================================
 
-module azureMonitor '../../_features/monitoring/azure-monitor.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: 'hub-azure-monitor'
-  scope: hubResourceGroup
-  params: {
-    location: location
-    resourceNames: resourceNames
-    tags: moduleTags
-  }
-}
-
-module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: 'hub-resources'
-  scope: hubResourceGroup
+module workloadFeature '../../_features/workload/resources.bicep' = {
+  name: 'workload-resources'
+  scope: workloadResourceGroup
   params: {
     deploymentSettings: deploymentSettings
     diagnosticSettings: diagnosticSettings
     location: location
-    networkSettings: networkSettings
     resourceNames: resourceNames
     tags: moduleTags
 
     // Dependencies
-    logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
+    applicationInsightsName: applicationInsightsName
+    azureMonitorResourceGroupName: azureMonitorResourceGroupName
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+    networkingResourceGroupName: networkingResourceGroupName
+    subnets: subnets
+    virtualNetworkName: virtualNetworkName
 
-    // Additional settings unique to this feature.
-    allowedEgressAddresses: allowedEgressAddresses
-    unrestrictedEgressAddresses: unrestrictedEgressAddresses
+    // Settings
+    sqlAdministratorPassword: sqlAdministratorPassword
+    sqlAdministratorUsername: sqlAdministratorUsername
   }
 }
 
@@ -158,11 +162,5 @@ module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymen
 // OUTPUTS
 // ========================================================================
 
-output bastion_hostname string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.bastion_hostname : ''
-output firewall_hostname string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.firewall_hostname : ''
-output route_table_id string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.route_table_id : ''
-output virtual_network_name string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.virtual_network_name : ''
-
-output application_insights_name string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.application_insights_name : ''
-output azure_monitor_resource_group_name string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.resource_group_name : ''
-output log_analytics_workspace_id string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.log_analytics_workspace_id : ''
+output service_api_endpoints string[] = workloadFeature.outputs.service_api_endpoints
+output service_web_endpoints string[] = workloadFeature.outputs.service_web_endpoints

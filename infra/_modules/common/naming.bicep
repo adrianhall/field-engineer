@@ -49,22 +49,28 @@ var defaultResourceNames = {
     hubBastion: 'bas-${resourceToken}'
     hubFirewallPublicIpAddress: 'pip-afw-${resourceToken}'
     hubFirewallSubnet: 'AzureFirewallSubnet'
+    hubFirewall: 'afw-${resourceToken}'
     hubRouteTable: 'rt-${resourceToken}'
     hubVirtualNetwork: 'vnet-hub-${resourceToken}'
 
     /*
     ** Spoke Networking Resources
     */
+    blockInboundNetworkSecurityGroup: 'nsg-block-inbound-${resourceToken}'
+    configurationNetworkSecurityGroup: 'nsg-configuration-${resourceToken}'
+    inboundHttpNetworkSecurityGroup: 'nsg-inbound-http-${resourceToken}'
     spokeApiInboundSubnet: 'ApiInboundSubnet'
     spokeApiOutboundSubnet: 'ApiOutboundSubnet'
     spokeBuildAgentSubnet: 'BuildAgentSubnet'
     spokeConfigurationSubnet: 'ConfigurationSubnet'
+    spokeDevopsSubnet: 'DevopsSubnet'
     spokeJumpboxSubnet: 'JumpboxSubnet'
     spokeStorageSubnet: 'StorageSubnet'
     spokeWebInboundSubnet: 'WebInboundSubnet'
     spokeWebOutboundSubnet: 'WebOutboundSubnet'
     spokeResourceGroup: 'rg-${workloadName}-${environment}-${location}-spoke'
     spokeVirtualNetwork: 'vnet-spoke-${resourceToken}'
+    storageNetworkSecurityGroup: 'nsg-storage-${resourceToken}'
 
     /*
     ** Shared Monitoring Resources
@@ -106,6 +112,11 @@ var defaultResourceNames = {
     buildAgentPublicIpAddress: 'pip-build-${resourceToken}'
     jumpbox: 'vm-jump-${resourceToken}'
     jumpboxPublicIpAddress: 'pip-jump-${resourceToken}'
+
+    /*
+    ** Usernames
+    */
+    administratorUsername: 'appadmin'
 }
 
 // ========================================================================
@@ -124,22 +135,28 @@ output resourceNames object = {
     hubBastion: contains(overrides, 'hubBastion') && !empty(overrides.hubBastion) ? overrides.hubBastion : defaultResourceNames.hubBastion
     hubFirewallPublicIpAddress: contains(overrides, 'hubFirewallPublicIpAddress') && !empty(overrides.hubFirewallPublicIpAddress) ? overrides.hubFirewallPublicIpAddress : defaultResourceNames.hubFirewallPublicIpAddress
     hubFirewallSubnet: contains(overrides, 'hubFirewallSubnet') && !empty(overrides.hubFirewallSubnet) ? overrides.hubFirewallSubnet : defaultResourceNames.hubFirewallSubnet
+    hubFirewall: contains(overrides, 'hubFirewall') && !empty(overrides.hubFirewall) ? overrides.hubFirewall : defaultResourceNames.hubFirewall
     hubRouteTable: contains(overrides, 'hubRouteTable') && !empty(overrides.hubRouteTable) ? overrides.hubRouteTable : defaultResourceNames.hubRouteTable
     hubVirtualNetwork: contains(overrides, 'hubVirtualNetwork') && !empty(overrides.hubVirtualNetwork) ? overrides.hubVirtualNetwork : defaultResourceNames.hubVirtualNetwork
 
     /*
     ** Spoke Networking Resources
     */
+    blockInboundNetworkSecurityGroup: contains(overrides, 'blockInboundNetworkSecurityGroup') && !empty(overrides.blockInboundNetworkSecurityGroup) ? overrides.blockInboundNetworkSecurityGroup : defaultResourceNames.blockInboundNetworkSecurityGroup
+    configurationNetworkSecurityGroup: contains(overrides, 'configurationNetworkSecurityGroup') && !empty(overrides.configurationNetworkSecurityGroup) ? overrides.configurationNetworkSecurityGroup : defaultResourceNames.configurationNetworkSecurityGroup
+    inboundHttpNetworkSecurityGroup: contains(overrides, 'inboundHttpNetworkSecurityGroup') && !empty(overrides.inboundHttpNetworkSecurityGroup) ? overrides.inboundHttpNetworkSecurityGroup : defaultResourceNames.inboundHttpNetworkSecurityGroup
     spokeApiInboundSubnet: contains(overrides, 'spokeApiInboundSubnet') && !empty(overrides.spokeApiInboundSubnet) ? overrides.spokeApiInboundSubnet : defaultResourceNames.spokeApiInboundSubnet
     spokeApiOutboundSubnet: contains(overrides, 'spokeApiOutboundSubnet') && !empty(overrides.spokeApiOutboundSubnet) ? overrides.spokeApiOutboundSubnet : defaultResourceNames.spokeApiOutboundSubnet
     spokeBuildAgentSubnet: contains(overrides, 'spokeBuildAgentSubnet') && !empty(overrides.spokeBuildAgentSubnet) ? overrides.spokeBuildAgentSubnet : defaultResourceNames.spokeBuildAgentSubnet
     spokeConfigurationSubnet: contains(overrides, 'spokeConfigurationSubnet') && !empty(overrides.spokeConfigurationSubnet) ? overrides.spokeConfigurationSubnet : defaultResourceNames.spokeConfigurationSubnet
+    spokeDevopsSubnet: contains(overrides, 'spokeDevopsSubnet') && !empty(overrides.spokeDevopsSubnet) ? overrides.spokeDevopsSubnet : defaultResourceNames.spokeDevopsSubnet
     spokeJumpboxSubnet: contains(overrides, 'spokeJumpboxSubnet') && !empty(overrides.spokeJumpboxSubnet) ? overrides.spokeJumpboxSubnet : defaultResourceNames.spokeJumpboxSubnet
     spokeStorageSubnet: contains(overrides, 'spokeStorageSubnet') && !empty(overrides.spokeStorageSubnet) ? overrides.spokeStorageSubnet : defaultResourceNames.spokeStorageSubnet
     spokeWebInboundSubnet: contains(overrides, 'spokeWebInboundSubnet') && !empty(overrides.spokeWebInboundSubnet) ? overrides.spokeWebInboundSubnet : defaultResourceNames.spokeWebInboundSubnet
     spokeWebOutboundSubnet: contains(overrides, 'spokeWebOutboundSubnet') && !empty(overrides.spokeWebOutboundSubnet) ? overrides.spokeWebOutboundSubnet : defaultResourceNames.spokeWebOutboundSubnet
     spokeResourceGroup: contains(overrides, 'spokeResourceGroup') && !empty(overrides.spokeResourceGroup) ? overrides.spokeResourceGroup : defaultResourceNames.spokeResourceGroup
     spokeVirtualNetwork: contains(overrides, 'spokeVirtualNetwork') && !empty(overrides.spokeVirtualNetwork) ? overrides.spokeVirtualNetwork : defaultResourceNames.spokeVirtualNetwork
+    storageNetworkSecurityGroup: contains(overrides, 'storageNetworkSecurityGroup') && !empty(overrides.storageNetworkSecurityGroup) ? overrides.storageNetworkSecurityGroup : defaultResourceNames.storageNetworkSecurityGroup
 
     /*
     ** Shared Monitoring Resources
@@ -181,4 +198,9 @@ output resourceNames object = {
     buildAgentPublicIpAddress: contains(overrides, 'buildAgentPublicIpAddress') && !empty(overrides.buildAgentPublicIpAddress) ? overrides.buildAgentPublicIpAddress : defaultResourceNames.buildAgentPublicIpAddress
     jumpbox: contains(overrides, 'jumpbox') && !empty(overrides.jumpbox) ? overrides.jumpbox : defaultResourceNames.jumpbox
     jumpboxPublicIpAddress: contains(overrides, 'jumpboxPublicIpAddress') && !empty(overrides.jumpboxPublicIpAddress) ? overrides.jumpboxPublicIpAddress : defaultResourceNames.jumpboxPublicIpAddress
+
+    /*
+    ** Administrator Usernames
+    */
+    administratorUsername: contains(overrides, 'administratorUsername') && !empty(overrides.administratorUsername) ? overrides.administratorUsername : defaultResourceNames.administratorUsername
 }

@@ -3,7 +3,7 @@ targetScope = 'subscription'
 // ========================================================================
 //
 //  Field Engineer Application
-//  Hub Networking Resources
+//  Common Resources for the Workload
 //  Copyright (C) 2023 Microsoft, Inc.
 //
 // ========================================================================
@@ -78,7 +78,6 @@ type NetworkSettings = {
 // PARAMETERS
 // ========================================================================
 
-
 @description('The global deployment settings')
 param deploymentSettings DeploymentSettings
 
@@ -89,68 +88,53 @@ param diagnosticSettings DiagnosticSettings
 @description('The name of the Azure region that will be used for the deployment.')
 param location string
 
-@description('The network settings for the hub network')
-param networkSettings NetworkSettings
-
 @description('The list of resource names to use')
 param resourceNames object
 
 /*
-** Module specific settings
+** Dependencies
 */
-@description('The address spaces allowed to connect through the firewall.')
-param allowedEgressAddresses string[] = []
+@description('The name of the Application Insights resource from the hub module.')
+param applicationInsightsName string = ''
 
-@description('The address space allowed unrestricted outbound access through the firewall.')
-param unrestrictedEgressAddresses string[] = []
+@description('The name of the resource group where the hub Azure Monitor resources are deployed.')
+param azureMonitorResourceGroupName string = ''
+
+@description('The Resource ID for the Log Analytics Workspace from the hub module.')
+param logAnalyticsWorkspaceId string = ''
+
 
 // ========================================================================
 // VARIABLES
 // ========================================================================
 
-var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'hub-network' })
+var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'workload' })
+
+var createSpokeResourceGroup = deploymentSettings.isNetworkIsolated && resourceNames.workloadResourceGroup != resourceNames.spokeResourceGroup
 
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
 
-resource hubResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = if (deploymentSettings.deployHubNetwork) {
-  name: resourceNames.hubResourceGroup
+resource workloadResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = {
+  name: resourceNames.workloadResourceGroup
   location: location
   tags: moduleTags
 }
 
-// ========================================================================
-// FEATURE MODULES
-// ========================================================================
-
-module azureMonitor '../../_features/monitoring/azure-monitor.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: 'hub-azure-monitor'
-  scope: hubResourceGroup
-  params: {
-    location: location
-    resourceNames: resourceNames
-    tags: moduleTags
-  }
+resource spokeResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = if (createSpokeResourceGroup) {
+  name: resourceNames.spokeResourceGroup
+  location: location
+  tags: union(deploymentSettings.tags, { 'azd-module': 'spoke-network' })
 }
 
-module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: 'hub-resources'
-  scope: hubResourceGroup
+module azureMonitor '../../_features/monitoring/azure-monitor.bicep' = if (!deploymentSettings.deployHubNetwork) {
+  name: 'common-azure-monitor'
+  scope: workloadResourceGroup
   params: {
-    deploymentSettings: deploymentSettings
-    diagnosticSettings: diagnosticSettings
     location: location
-    networkSettings: networkSettings
     resourceNames: resourceNames
     tags: moduleTags
-
-    // Dependencies
-    logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
-
-    // Additional settings unique to this feature.
-    allowedEgressAddresses: allowedEgressAddresses
-    unrestrictedEgressAddresses: unrestrictedEgressAddresses
   }
 }
 
@@ -158,11 +142,9 @@ module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymen
 // OUTPUTS
 // ========================================================================
 
-output bastion_hostname string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.bastion_hostname : ''
-output firewall_hostname string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.firewall_hostname : ''
-output route_table_id string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.route_table_id : ''
-output virtual_network_name string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.virtual_network_name : ''
+output workload_resource_group_name string = workloadResourceGroup.name
+output spoke_resource_group_name string = createSpokeResourceGroup ? spokeResourceGroup.name : workloadResourceGroup.name
 
-output application_insights_name string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.application_insights_name : ''
-output azure_monitor_resource_group_name string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.resource_group_name : ''
-output log_analytics_workspace_id string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.log_analytics_workspace_id : ''
+output azure_monitor_resource_group_name string = !deploymentSettings.deployHubNetwork ? azureMonitor.outputs.resource_group_name : azureMonitorResourceGroupName
+output application_insights_name string = !deploymentSettings.deployHubNetwork ? azureMonitor.outputs.application_insights_name : applicationInsightsName
+output log_analytics_workspace_id string = !deploymentSettings.deployHubNetwork ? azureMonitor.outputs.log_analytics_workspace_id : logAnalyticsWorkspaceId

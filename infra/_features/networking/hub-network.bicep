@@ -3,9 +3,13 @@ targetScope = 'resourceGroup'
 // ========================================================================
 //
 //  Field Engineer Application
-//  Resource Naming
+//  Hub Network Deployment
 //  Copyright (C) 2023 Microsoft, Inc.
 //
+// ========================================================================
+
+// ========================================================================
+// USER-DEFINED TYPES
 // ========================================================================
 
 /*
@@ -74,12 +78,15 @@ type NetworkSettings = {
   addressPrefixes: object
 }
 
-/*
-** This module create a hub network, if it is requested.
-*/
+// ========================================================================
+// PARAMETERS
+// ========================================================================
 
 @description('The global deployment settings')
 param deploymentSettings DeploymentSettings
+
+@description('The global diagnostic settings')
+param diagnosticSettings DiagnosticSettings
 
 @minLength(3)
 @description('The name of the Azure region that will be used for the deployment.')
@@ -94,37 +101,98 @@ param resourceNames object
 @description('The tags to use for all resources')
 param tags object
 
+/*
+** Dependencies
+*/
+@description('The Log Analytics Workspace to send diagnostic and audit data to')
+param logAnalyticsWorkspaceId string
+
+/*
+** Feature-dependent settings
+*/
+@description('The address spaces allowed to connect through the firewall.')
+param allowedEgressAddresses string[] = []
+
+@description('The address space allowed unrestricted outbound access through the firewall.')
+param unrestrictedEgressAddresses string[] = []
+
 // ========================================================================
 // VARIABLES
 // ========================================================================
 
-// ========================================================================
-// AZURE RESOURCES
-// ========================================================================
+// Some helpers for the firewall rules
+var allowTraffic = { type: 'allow' }
+var httpProtocol  = { port: '80', protocolType: 'HTTP' }
+var httpsProtocol = { port: '443', protocolType: 'HTTPS' }
+var azureFqdns = loadJsonContent('./azure-fqdns.jsonc')
 
-module logAnalytics '../../_azure/monitoring/log-analytics.bicep' = {
-  name: 'hub-log-analytics'
-  params: {
-    location: location
-    name: resourceNames.logAnalyticsWorkspace
-    tags: tags
-
-    // Settings
-    sku: deploymentSettings.isProduction ? 'PerGB2018' : 'Free'
+var applicationRuleCollections = [
+  {
+    name: 'Azure-Monitor'
+    properties: {
+      action: allowTraffic
+      priority: 201
+      rules: [
+        {
+          name: 'allow-azure-monitor'
+          protocols: [ httpsProtocol ]
+          sourceAddresses: allowedEgressAddresses
+          targetFqdns: azureFqdns.azureMonitor
+        }
+      ]
+    }
   }
-}
-
-module applicationInsights '../../_azure/monitoring/application-insights.bicep' = {
-  name: 'hub-application-insights'
-  params: {
-    location: location
-    name: resourceNames.applicationInsights
-    dashboardName: resourceNames.applicationInsightsDashboard
-
-    // Dependencies
-    logAnalyticsWorkspaceId: logAnalytics.outputs.workspace_id
+  {
+    name: 'Core-Dependencies'
+    properties: {
+      action: allowTraffic
+      priority: 200
+      rules: [
+        {
+          name: 'allow-core-apis'
+          protocols: [ httpsProtocol ]
+          sourceAddresses: allowedEgressAddresses
+          targetFqdns: azureFqdns.coreServices
+        }
+        {
+          name: 'allow-developer-services'
+          protocols: [ httpsProtocol ]
+          sourceAddresses: allowedEgressAddresses
+          targetFqdns: azureFqdns.developerServices
+        }
+        {
+          name: 'allow-certificate-dependencies'
+          protocols: [ httpProtocol, httpsProtocol ]
+          sourceAddresses: allowedEgressAddresses
+          targetFqdns: azureFqdns.certificateServices
+        }
+      ]
+    }
   }
-}
+]
+
+var networkRuleCollections = !empty(unrestrictedEgressAddresses) ? [
+  {
+    name: 'Unrestricted-Outbound'
+    properties: {
+      action: allowTraffic
+      priority: 100
+      rules: [
+        {
+          name: 'allow-unrestricted-outbound'
+          destinationAddresses: [ '*' ]
+          destinationPorts: [ '443' ]
+          protocols: [ 'TCP' ]
+          sourceAddresses: unrestrictedEgressAddresses
+        }
+      ]
+    }
+  }
+] : []
+
+// ========================================================================
+// AZURE MODULES
+// ========================================================================
 
 module virtualNetwork '../../_azure/networking/virtual-network.bicep' = {
   name: 'hub-virtual-network'
@@ -134,21 +202,21 @@ module virtualNetwork '../../_azure/networking/virtual-network.bicep' = {
     tags: tags
 
     // Dependencies
-    logAnalyticsWorkspaceId: logAnalytics.outputs.workspace_id
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
 
     // Settings
     addressSpace: networkSettings.addressSpace
     diagnosticSettings: diagnosticSettings
     subnets: [
       {
-        name: resourceNames.bastionSubnet
+        name: resourceNames.hubBastionSubnet
         properties: {
           addressPrefix: networkSettings.addressPrefixes.bastion
           privateEndpointNetworkPolicies: 'Disabled'
         }
       }
       {
-        name: resourceNames.firewallSubnet
+        name: resourceNames.hubFirewallSubnet
         properties: {
           addressPrefix: networkSettings.addressPrefixes.firewall
           privateEndpointNetworkPolicies: 'Disabled'
@@ -162,17 +230,17 @@ module bastionHost '../../_azure/security/bastion.bicep' = {
   name: 'hub-bastion-host'
   params: {
     location: location
-    name: resourceNames.bastion
-    publicIpAddressName: resourceNames.bastionPublicIpAddress
+    name: resourceNames.hubBastion
+    publicIpAddressName: resourceNames.hubBastionPublicIpAddress
     tags: tags
 
     // Dependencies
-    logAnalyticsWorkspaceId: logAnalytics.outputs.workspace_id
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
 
     // Settings
     diagnosticSettings: diagnosticSettings
     enablePublicIpAddress: true
-    sku: 'Standard'
+    sku: deploymentSettings.isProduction ? 'Standard' : 'Basic'
     subnetId: virtualNetwork.outputs.subnets[0].id
     zoneRedundant: deploymentSettings.isProduction
   }
@@ -182,17 +250,17 @@ module firewall '../../_azure/security/firewall.bicep' = {
   name: 'hub-firewall'
   params: {
     location: location
-    name: resourceNames.firewall
-    publicIpAddressName: resourceNames.firewallPublicIpAddress
+    name: resourceNames.hubFirewall
+    publicIpAddressName: resourceNames.hubFirewallPublicIpAddress
     tags: tags
 
     // Dependencies
-    logAnalyticsWorkspaceId: logAnalytics.outputs.workspace_id
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
 
     // Settings
-    applicationRules: applicationRules
+    applicationRuleCollections: applicationRuleCollections
     diagnosticSettings: diagnosticSettings
-    networkRules: networkRules
+    networkRuleCollections: networkRuleCollections
     subnetId: virtualNetwork.outputs.subnets[1].id
   }
 }
@@ -201,7 +269,7 @@ module routeTable '../../_azure/networking/route-table.bicep' = {
   name: 'hub-route-table'
   params: {
     location: location
-    name: resourceNames.routeTable
+    name: resourceNames.hubRouteTable
     tags: tags
 
     // Settings
@@ -222,6 +290,7 @@ module routeTable '../../_azure/networking/route-table.bicep' = {
 // OUTPUTS
 // ========================================================================
 
-output workspace_id string = logAnalytics.outputs.workspace_id
-output virtual_network_name string = virtualNetwork.outputs.name
+output bastion_hostname string = bastionHost.outputs.hostname
+output firewall_hostname string = firewall.outputs.hostname
 output route_table_id string = routeTable.outputs.id
+output virtual_network_name string = virtualNetwork.outputs.name

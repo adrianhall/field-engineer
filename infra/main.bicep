@@ -114,6 +114,13 @@ var deploymentSettings = {
   useCommonAppServicePlan: useCommonAppServicePlan == 'true' || (useCommonAppServicePlan == 'auto' && !isProduction)
 }
 
+var diagnosticSettings = {
+  auditLogRetentionInDays: isProduction ? 30 : 3
+  diagnosticLogRetentionInDays: isProduction ? 7 : 3
+  enableAuditLogs: isProduction
+  enableDiagnosticLogs: true
+}
+
 var networkSettings = {
   hub: {
     addressSpace: '10.1.0.0/16'
@@ -131,7 +138,6 @@ var networkSettings = {
       webOutbound:   '10.2.1.128/25'
       configuration: '10.2.2.0/26'
       storage:       '10.2.2.64/26'
-      edge:          '10.2.2.128/26'
       buildAgent:    '10.2.254.0/26'
       jumphost:      '10.2.254.64/26'
       devops:        '10.2.254.128/26'
@@ -158,12 +164,103 @@ module naming './_modules/common/naming.bicep' = {
   }
 }
 
+/*
+** Create the Hub Network (if requested)
+*/
 module hubNetwork './_modules/networking/hub.bicep' = {
   name: '${environmentName}-${environmentType}-hub-network'
   params: {
     deploymentSettings: deploymentSettings
+    diagnosticSettings: diagnosticSettings
     location: location
     networkSettings: networkSettings.hub
     resourceNames: naming.outputs.resourceNames
+
+    allowedEgressAddresses: [
+      networkSettings.hub.addressSpace
+      networkSettings.spoke.addressSpace
+    ]
+    unrestrictedEgressAddresses: [
+      networkSettings.spoke.addressPrefixes.buildAgent
+      networkSettings.spoke.addressPrefixes.jumphost
+      networkSettings.spoke.addressPrefixes.devops
+    ]
   }
 }
+
+/*
+** Create the Workload resource group and Azure Monitor resources (if not in the hub)
+*/
+module workloadServices './_modules/common/resources.bicep' = {
+  name: '${environmentName}-${environmentType}-workload-services'
+  params: {
+    deploymentSettings: deploymentSettings
+    diagnosticSettings: diagnosticSettings
+    location: location
+    resourceNames: naming.outputs.resourceNames
+
+    // Dependencies
+    applicationInsightsName: hubNetwork.outputs.application_insights_name
+    azureMonitorResourceGroupName: hubNetwork.outputs.azure_monitor_resource_group_name
+    logAnalyticsWorkspaceId: hubNetwork.outputs.log_analytics_workspace_id
+  }
+}
+
+/*
+** Create the Spoke Network (if requested)
+*/
+module spokeNetwork './_modules/networking/spoke.bicep' = {
+  name: '${environmentName}-${environmentType}-spoke-network'
+  params: {
+    deploymentSettings: deploymentSettings
+    diagnosticSettings: diagnosticSettings
+    location: location
+    networkSettings: networkSettings.hub
+    resourceNames: naming.outputs.resourceNames
+
+    // Dependencies
+    hubVirtualNetworkName: hubNetwork.outputs.virtual_network_name
+    logAnalyticsWorkspaceId: workloadServices.outputs.log_analytics_workspace_id
+    resourceGroupName: workloadServices.outputs.spoke_resource_group_name
+    routeTableId: hubNetwork.outputs.route_table_id
+
+    // Settings
+    peerToHubNetwork: deploymentSettings.deployHubNetwork
+  }
+}
+
+/*
+** Create the Workload Resources
+*/
+module workloadResources './_modules/workload/resources.bicep' = {
+  name: '${environmentName}-${environmentType}-workload-resources'
+  params: {
+    deploymentSettings: deploymentSettings
+    diagnosticSettings: diagnosticSettings
+    location: location
+    resourceNames: naming.outputs.resourceNames
+
+    // Dependencies
+    applicationInsightsName: workloadServices.outputs.application_insights_name
+    azureMonitorResourceGroupName: workloadServices.outputs.azure_monitor_resource_group_name
+    logAnalyticsWorkspaceId: workloadServices.outputs.log_analytics_workspace_id
+    networkingResourceGroupName: spokeNetwork.outputs.resource_group_name
+    subnets: spokeNetwork.outputs.subnets
+    virtualNetworkName: spokeNetwork.outputs.virtual_network_name
+    workloadResourceGroupName: workloadServices.outputs.workload_resource_group_name
+
+    // Settings
+    sqlAdministratorPassword: administratorPassword
+    sqlAdministratorUsername: naming.outputs.resourceNames.administratorUsername
+  }
+}
+
+// ========================================================================
+// OUTPUTS
+// ========================================================================
+
+output bastion_hostname string = hubNetwork.outputs.bastion_hostname
+output firewall_hostname string = hubNetwork.outputs.firewall_hostname
+
+output service_api_endpoints string[] = workloadResources.outputs.service_api_endpoints
+output service_web_endpoints string[] = workloadResources.outputs.service_web_endpoints

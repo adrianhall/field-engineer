@@ -3,7 +3,7 @@ targetScope = 'subscription'
 // ========================================================================
 //
 //  Field Engineer Application
-//  Hub Networking Resources
+//  Spoke Networking Resources
 //  Copyright (C) 2023 Microsoft, Inc.
 //
 // ========================================================================
@@ -96,47 +96,50 @@ param networkSettings NetworkSettings
 param resourceNames object
 
 /*
+** Dependencies
+*/
+@description('If set, the hub resource group name that will be used for peering')
+param hubResourceGroupName string = ''
+
+@description('If set, the hub virtual network name that will be used for peering')
+param hubVirtualNetworkName string = ''
+
+@description('The Log Analytics Workspace to send diagnostic and audit data to')
+param logAnalyticsWorkspaceId string
+
+@description('The resource group name for the spoke networking resources')
+param resourceGroupName string = ''
+
+@description('If set, the route table holding the outbound route for the hub network')
+param routeTableId string = ''
+
+/*
 ** Module specific settings
 */
-@description('The address spaces allowed to connect through the firewall.')
-param allowedEgressAddresses string[] = []
-
-@description('The address space allowed unrestricted outbound access through the firewall.')
-param unrestrictedEgressAddresses string[] = []
+@description('If true, peer to the hub network.  If false, we\'re assuming you will deal with this separately.')
+param peerToHubNetwork bool = false
 
 // ========================================================================
 // VARIABLES
 // ========================================================================
 
-var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'hub-network' })
+var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'spoke-network' })
 
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
 
-resource hubResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = if (deploymentSettings.deployHubNetwork) {
-  name: resourceNames.hubResourceGroup
-  location: location
-  tags: moduleTags
+resource spokeResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' existing = {
+  name: resourceGroupName
 }
 
 // ========================================================================
 // FEATURE MODULES
 // ========================================================================
 
-module azureMonitor '../../_features/monitoring/azure-monitor.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: 'hub-azure-monitor'
-  scope: hubResourceGroup
-  params: {
-    location: location
-    resourceNames: resourceNames
-    tags: moduleTags
-  }
-}
-
-module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: 'hub-resources'
-  scope: hubResourceGroup
+module spokeNetwork '../../_features/networking/spoke-network.bicep' = if (deploymentSettings.isNetworkIsolated) {
+  name: 'spoke-resources'
+  scope: spokeResourceGroup
   params: {
     deploymentSettings: deploymentSettings
     diagnosticSettings: diagnosticSettings
@@ -146,11 +149,27 @@ module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymen
     tags: moduleTags
 
     // Dependencies
-    logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+    routeTableId: routeTableId
 
-    // Additional settings unique to this feature.
-    allowedEgressAddresses: allowedEgressAddresses
-    unrestrictedEgressAddresses: unrestrictedEgressAddresses
+    // Settings
+    privateDnsZones: [
+      'privatelink.azconfig.io'
+      'privatelink.vaultcore.azure.net'
+      'privatelink${az.environment().suffixes.sqlServerHostname}'
+      'privatelink.azurewebsites.net'
+    ]
+  }
+}
+
+module peerNetworks '../../_features/networking/peer-networks.bicep' = if (peerToHubNetwork && !empty(hubResourceGroupName) && !empty(hubVirtualNetworkName)) {
+  name: 'peer-networks'
+  scope: subscription()
+  params: {
+    hubResourceGroupName: hubResourceGroupName
+    hubVirtualNetworkName: hubVirtualNetworkName
+    spokeResourceGroupName: spokeResourceGroup.name
+    spokeVirtualNetworkName: spokeNetwork.outputs.virtual_network_name
   }
 }
 
@@ -158,11 +177,6 @@ module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymen
 // OUTPUTS
 // ========================================================================
 
-output bastion_hostname string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.bastion_hostname : ''
-output firewall_hostname string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.firewall_hostname : ''
-output route_table_id string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.route_table_id : ''
-output virtual_network_name string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.virtual_network_name : ''
-
-output application_insights_name string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.application_insights_name : ''
-output azure_monitor_resource_group_name string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.resource_group_name : ''
-output log_analytics_workspace_id string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.log_analytics_workspace_id : ''
+output resource_group_name string = deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.resource_group_name : ''
+output subnets object = deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.subnets : {}
+output virtual_network_name string = deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.virtual_network_name : ''
