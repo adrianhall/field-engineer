@@ -166,7 +166,7 @@ module configurationFeature './configuration.bicep' = {
       outboundSubnetName: ''
       virtualNetworkName: virtualNetworkName
       resourceGroupName: networkingResourceGroupName
-    } : {}
+    } : null
     ownerIdentities: [
       { principalId: deploymentSettings.principalId,            principalType: deploymentSettings.principalType }
       { principalId: ownerManagedIdentity.outputs.principal_id, principalType: 'ServicePrincipal' }
@@ -196,7 +196,7 @@ module storageFeature './storage.bicep' = {
       outboundSubnetName: ''
       virtualNetworkName: virtualNetworkName
       resourceGroupName: networkingResourceGroupName
-    } : {}
+    } : null
     ownerManagedIdentityName: ownerManagedIdentity.outputs.name
     sqlAdministratorPassword: sqlAdministratorPassword
     sqlAdministratorUsername: sqlAdministratorUsername
@@ -245,7 +245,7 @@ module apiServiceFeature './app-service.bicep' = {
       outboundSubnetName: resourceNames.spokeApiOutboundSubnet
       virtualNetworkName: virtualNetworkName
       resourceGroupName: networkingResourceGroupName
-    } : {}
+    } : null
     privateEndpointName: resourceNames.apiPrivateEndpoint
     servicePrefix: 'api'
   }
@@ -275,7 +275,7 @@ module webServiceFeature './app-service.bicep' = {
       outboundSubnetName: resourceNames.spokeWebOutboundSubnet
       virtualNetworkName: virtualNetworkName
       resourceGroupName: networkingResourceGroupName
-    } : {}
+    } : null
     privateEndpointName: resourceNames.webPrivateEndpoint
     servicePrefix: 'web'
   }

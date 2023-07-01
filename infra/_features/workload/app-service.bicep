@@ -142,6 +142,13 @@ param privateEndpointName string = ''
 param servicePrefix string
 
 // =====================================================================================================================
+//     VARIABLES
+// =====================================================================================================================
+
+var inboundSubnetId = deploymentSettings.isNetworkIsolated && networkIsolationSettings != null ? resourceId(networkIsolationSettings!.resourceGroupName, 'Microsoft.Network/virtualNetworks/subnets', networkIsolationSettings!.virtualNetworkName, networkIsolationSettings!.inboundSubnetName ?? '') : ''
+var outboundSubnetId = deploymentSettings.isNetworkIsolated && networkIsolationSettings != null ? resourceId(networkIsolationSettings!.resourceGroupName, 'Microsoft.Network/virtualNetworks/subnets', networkIsolationSettings!.virtualNetworkName, networkIsolationSettings!.outboundSubnetName ?? '') : ''
+
+// =====================================================================================================================
 //     AZURE RESOURCES
 // =====================================================================================================================
 
@@ -156,16 +163,6 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
 resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: applicationInsightsName
   scope: resourceGroup(applicationInsightsResourceGroupName)
-}
-
-resource inboundSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-11-01' existing = if (deploymentSettings.isNetworkIsolated && networkIsolationSettings != null) {
-  name: '${networkIsolationSettings!.virtualNetworkName}/${networkIsolationSettings!.inboundSubnetName}'
-  scope: resourceGroup(networkIsolationSettings!.resourceGroupName)
-}
-
-resource outboundSubnet 'Microsoft.Network/virtualNetworks/subnets@2022-11-01' existing = if (deploymentSettings.isNetworkIsolated && networkIsolationSettings != null) {
-  name: '${networkIsolationSettings!.virtualNetworkName}/${networkIsolationSettings!.inboundSubnetName}'
-  scope: resourceGroup(networkIsolationSettings!.resourceGroupName)
 }
 
 // =====================================================================================================================
@@ -201,7 +198,7 @@ module appService '../../_azure/hosting/app-service.bicep' = {
     appServicePlanName: deploymentSettings.useCommonAppServicePlan ? appServicePlanName : appServicePlan.outputs.name
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     managedIdentityName: managedIdentityName
-    subnetResourceId: deploymentSettings.isNetworkIsolated ? outboundSubnet.id : ''
+    subnetResourceId: deploymentSettings.isNetworkIsolated ? outboundSubnetId : ''
 
     // Setttings
     appSettings: {
@@ -226,9 +223,9 @@ module appService '../../_azure/hosting/app-service.bicep' = {
   }
 }
 
-module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (deploymentSettings.isNetworkIsolated) {
+module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (deploymentSettings.isNetworkIsolated && networkIsolationSettings != null) {
   name: '${servicePrefix}-appsvc-private-endpoint'
-  scope: resourceGroup(networkIsolationSettings!.resourceGroupName)
+  scope: resourceGroup(networkIsolationSettings != null ? networkIsolationSettings!.resourceGroupName : resourceGroup().name)
   params: {
     name: privateEndpointName
     location: location
@@ -237,7 +234,7 @@ module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (de
     // Dependencies
     linkServiceId: appService.outputs.id
     linkServiceName: appService.outputs.name
-    subnetResourceId: inboundSubnet.id
+    subnetResourceId: inboundSubnetId
 
     // Settings
     dnsZoneName: 'privatelink.azurewebsites.net'

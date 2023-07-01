@@ -132,16 +132,13 @@ param sqlAdministratorUsername string
 // VARIABLES
 // ========================================================================
 
-var createSqlServer = resourceNames.sqlResourceGroup == resourceNames.workloadResourceGroup
+var createSqlServer = resourceNames.sqlResourceGroup == resourceNames.resourceGroup
+
+var subnetId = deploymentSettings.isNetworkIsolated && networkIsolationSettings != null ? resourceId(networkIsolationSettings!.resourceGroupName, 'Microsoft.Network/virtualNetworks/subnets', networkIsolationSettings!.virtualNetworkName, networkIsolationSettings!.inboundSubnetName ?? '') : ''
 
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
-
-resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-11-01' existing = if (deploymentSettings.isNetworkIsolated && networkIsolationSettings != null) {
-  name: '${networkIsolationSettings!.virtualNetworkName}/${networkIsolationSettings!.inboundSubnetName}'
-  scope: resourceGroup(networkIsolationSettings!.resourceGroupName)
-}
 
 resource existing_sqlserver 'Microsoft.Sql/servers@2021-11-01' existing = if (!createSqlServer) {
   name: resourceNames.sqlServer
@@ -191,9 +188,9 @@ module sqlDatabase '../../_azure/database/sql-database.bicep' = {
   }
 }
 
-module sqlDatabasePrivateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (deploymentSettings.isNetworkIsolated) {
+module sqlDatabasePrivateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (deploymentSettings.isNetworkIsolated && networkIsolationSettings != null) {
   name: 'private-endpoint-for-sqldb'
-  scope: resourceGroup(networkIsolationSettings!.resourceGroupName)
+  scope: resourceGroup(networkIsolationSettings != null ? networkIsolationSettings!.resourceGroupName : resourceGroup().name)
   params: {
     name: resourceNames.sqlDatabasePrivateEndpoint
     location: location
@@ -202,7 +199,7 @@ module sqlDatabasePrivateEndpoint '../../_azure/networking/private-endpoint.bice
     // Dependencies
     linkServiceName: '${sqlDatabase.outputs.sql_server_name}/${sqlDatabase.outputs.name}'
     linkServiceId: sqlDatabase.outputs.sql_server_id
-    subnetResourceId: subnet.id
+    subnetResourceId: subnetId
 
     // Settings:
     dnsZoneName: 'privatelink${az.environment().suffixes.sqlServerHostname}'

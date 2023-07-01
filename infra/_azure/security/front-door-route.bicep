@@ -48,14 +48,14 @@ param serviceAddress string
 
 var isPrivateLinkOrigin = contains(privateLinkSettings, 'privateEndpointResourceId')
 
-var privateLinkOriginDetails = {
+var privateLinkOriginDetails = isPrivateLinkOrigin ? {
   privateLink: {
     id: privateLinkSettings.privateEndpointResourceId ?? ''
   }
   groupId: privateLinkSettings.linkResourceType ?? ''
   privateLinkLocation: privateLinkSettings.location ?? ''
   requestMessage: 'Please approve the private link request'
-}
+} : null
 
 // =====================================================================================================================
 //     AZURE RESOURCES
@@ -96,7 +96,7 @@ resource origin 'Microsoft.Cdn/profiles/originGroups/origins@2021-06-01' = {
     httpsPort: 443
     originHostHeader: serviceAddress
     priority: 1
-    sharedPrivateLinkResource: isPrivateLinkOrigin ? privateLinkOriginDetails : null
+    sharedPrivateLinkResource: privateLinkOriginDetails
     weight: 1000
   }
 }

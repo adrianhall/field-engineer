@@ -150,14 +150,7 @@ var vaultAdministratorRoleId = '00482a5a-887f-4fb3-b363-3b7fe8e74483'
 @description('Built in \'Key Vault Secrets User\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
 var vaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
 
-// ========================================================================
-// AZURE RESOURCES
-// ========================================================================
-
-resource subnet 'Microsoft.Network/virtualNetworks/subnets@2022-11-01' existing = if (deploymentSettings.isNetworkIsolated && networkIsolationSettings != null) {
-  name: '${networkIsolationSettings!.virtualNetworkName}/${networkIsolationSettings!.inboundSubnetName}'
-  scope: resourceGroup(networkIsolationSettings!.resourceGroupName)
-}
+var subnetId = deploymentSettings.isNetworkIsolated && networkIsolationSettings != null ? resourceId(networkIsolationSettings!.resourceGroupName, 'Microsoft.Network/virtualNetworks/subnets', networkIsolationSettings!.virtualNetworkName, networkIsolationSettings!.inboundSubnetName ?? '') : ''
 
 // ========================================================================
 // AZURE MODULES
@@ -232,9 +225,9 @@ module grantSecretsUserAccess '../../_azure/identity/role-assignment.bicep' = [ 
   }
 }]
 
-module appConfigurationPrivateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (deploymentSettings.isNetworkIsolated) {
+module appConfigurationPrivateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (deploymentSettings.isNetworkIsolated && networkIsolationSettings != null) {
   name: 'app-configuration-private-endpoint'
-  scope: resourceGroup(networkIsolationSettings!.resourceGroupName ?? resourceGroup().name)
+  scope: resourceGroup(networkIsolationSettings != null ? networkIsolationSettings!.resourceGroupName : resourceGroup().name)
   params: {
     name: resourceNames.appConfigurationPrivateEndpoint
     location: location
@@ -243,7 +236,7 @@ module appConfigurationPrivateEndpoint '../../_azure/networking/private-endpoint
     // Dependencies
     linkServiceName: appConfiguration.outputs.name
     linkServiceId: appConfiguration.outputs.id
-    subnetResourceId: subnet.id
+    subnetResourceId: subnetId
 
     // Settings
     dnsZoneName: 'privatelink.azconfig.io'
@@ -251,9 +244,9 @@ module appConfigurationPrivateEndpoint '../../_azure/networking/private-endpoint
   }
 }
 
-module keyVaultPrivateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (deploymentSettings.isNetworkIsolated) {
+module keyVaultPrivateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (deploymentSettings.isNetworkIsolated && networkIsolationSettings != null) {
   name: 'key-vault-private-endpoint'
-  scope: resourceGroup(networkIsolationSettings!.resourceGroupName ?? resourceGroup().name)
+  scope: resourceGroup(networkIsolationSettings != null ? networkIsolationSettings!.resourceGroupName : resourceGroup().name)
   params: {
     name: resourceNames.keyVaultPrivateEndpoint
     location: location
@@ -262,7 +255,7 @@ module keyVaultPrivateEndpoint '../../_azure/networking/private-endpoint.bicep' 
     // Dependencies
     linkServiceName: keyVault.outputs.name
     linkServiceId: keyVault.outputs.id
-    subnetResourceId: subnet.id
+    subnetResourceId: subnetId
 
     // Settings
     dnsZoneName: 'privatelink.vaultcore.azure.net'
