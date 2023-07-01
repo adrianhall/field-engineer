@@ -110,3 +110,5 @@ resource auditSettings 'Microsoft.Sql/servers/auditingSettings@2021-11-01' = if 
 
 output id string = sqlServer.id
 output name string = sqlServer.name
+
+output hostname string = sqlServer.properties.fullyQualifiedDomainName

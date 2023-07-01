@@ -188,6 +188,7 @@ module storageFeature './storage.bicep' = {
     tags: tags
 
     // Dependencies
+    keyVaultName: configurationFeature.outputs.key_vault_name
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
 
     // Settings
@@ -269,7 +270,8 @@ module webServiceFeature './app-service.bicep' = {
     managedIdentityName: webManagedIdentity.outputs.name
 
     // Settings
-    appServiceName: resourceNames.apiAppService
+    appServiceName: resourceNames.webAppService
+    restrictToAzureFrontDoor: gatewayFeature.outputs.front_door_id
     networkIsolationSettings: deploymentSettings.isNetworkIsolated ? {
       inboundSubnetName: resourceNames.spokeWebInboundSubnet
       outboundSubnetName: resourceNames.spokeWebOutboundSubnet
@@ -292,6 +294,18 @@ module gatewayFeature './gateway.bicep' = {
 
     // Dependencies
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+  }
+}
+
+module gatewayRoutesFeature './gateway-routes.bicep' = {
+  name: 'workload-gateway-routes-module'
+  params: {
+    deploymentSettings: deploymentSettings
+    location: location
+
+    // Dependencies
+    frontDoorEndpointName: gatewayFeature.outputs.front_door_endpoint_name
+    frontDoorProfileName: gatewayFeature.outputs.front_door_profile_name
     managedIdentityName: ownerManagedIdentity.outputs.name
 
     // Settings

@@ -60,6 +60,9 @@ param appSettings object
 @description('Whether or not public endpoint access is allowed for this server')
 param enablePublicNetworkAccess bool = true
 
+@description('IP Security Restrictions to configure')
+param ipSecurityRestrictions object[] = []
+
 @description('The service prefix - used to tag the resource for azd deployment')
 param servicePrefix string
 
@@ -97,6 +100,7 @@ var defaultAppServiceProperties = {
     httpLoggingEnabled: diagnosticSettings.enableDiagnosticLogs
     requestTracingEnabled: diagnosticSettings.enableDiagnosticLogs
     ftpsState: 'Disabled'
+    ipSecurityRestrictions: ipSecurityRestrictions
     minTlsVersion: '1.2'
   }
 }

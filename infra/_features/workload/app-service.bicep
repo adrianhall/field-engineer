@@ -138,6 +138,9 @@ param networkIsolationSettings NetworkIsolationSettings?
 @description('The name of the private endpoint, if network isolation is enabled')
 param privateEndpointName string = ''
 
+@description('If set, restricts connectivity to only allow connections via the specified Azure Front Door')
+param restrictToAzureFrontDoor string = ''
+
 @description('The service prefix to use for this service')
 param servicePrefix string
 
@@ -219,6 +222,18 @@ module appService '../../_azure/hosting/app-service.bicep' = {
     }
     diagnosticSettings: diagnosticSettings
     enablePublicNetworkAccess: !deploymentSettings.isNetworkIsolated
+    ipSecurityRestrictions: !empty(restrictToAzureFrontDoor) ? [
+      {
+        tag: 'ServiceTag'
+        ipAddress: 'AzureFrontDoor.Backend'
+        action: 'Allow'
+        priority: 100
+        headers: {
+          'x-azure-fdid': [ restrictToAzureFrontDoor ]
+        }
+        name: 'Allow traffic from Front Door'
+      }
+    ] : []
     servicePrefix: servicePrefix
   }
 }

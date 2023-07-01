@@ -96,7 +96,7 @@ resource origin 'Microsoft.Cdn/profiles/originGroups/origins@2021-06-01' = {
     httpsPort: 443
     originHostHeader: serviceAddress
     priority: 1
-    sharedPrivateLinkResource: privateLinkOriginDetails
+    sharedPrivateLinkResource: isPrivateLinkOrigin ? privateLinkOriginDetails : null
     weight: 1000
   }
 }

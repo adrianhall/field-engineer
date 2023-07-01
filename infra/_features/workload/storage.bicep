@@ -107,6 +107,9 @@ param tags object
 /*
 ** Dependencies
 */
+@description('The Key Vault to write the SQL Administrator information to')
+param keyVaultName string = ''
+
 @description('The ID of the Log Analytics Workspace to send audit and diagnostic data to.')
 param logAnalyticsWorkspaceId string
 
@@ -185,6 +188,18 @@ module sqlDatabase '../../_azure/database/sql-database.bicep' = {
     dtuCapacity: deploymentSettings.isProduction ? 125 : 10
     sku: deploymentSettings.isProduction ? 'Premium' : 'Standard'
     zoneRedundant: deploymentSettings.isProduction
+  }
+}
+
+module writeSqlAdminInfo '../../_azure/security/key-vault-secrets.bicep' = if (createSqlServer && !empty(keyVaultName)) {
+  name: 'write-sql-admin-info-to-keyvault'
+  params: {
+    name: keyVaultName
+    secrets: [
+      { key: 'FieldEngineer--SqlAdministratorUsername', value: sqlAdministratorUsername }
+      { key: 'FieldEngineer--SqlAdministratorPassword', value: sqlAdministratorPassword }
+      { key: 'FieldEngineer--SqlConnectionString', value: 'Server=tcp:${created_sqlserver.outputs.hostname},1433;Database=${sqlDatabase.name};User ID=${sqlAdministratorUsername};Password=${sqlAdministratorPassword};Trusted_Connection=False;Encrypt=True;' }
+    ]
   }
 }
 

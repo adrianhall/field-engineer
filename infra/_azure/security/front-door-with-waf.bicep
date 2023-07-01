@@ -188,5 +188,6 @@ output endpoint_name string = frontDoorEndpoint.name
 output profile_name string = frontDoorProfile.name
 output waf_name string = wafPolicy.name
 
+output front_door_id string = frontDoorProfile.properties.frontDoorId
 output hostname string = frontDoorEndpoint.properties.hostName
 output uri string = 'https://${frontDoorEndpoint.properties.hostName}'

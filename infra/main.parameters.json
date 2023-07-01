@@ -2,11 +2,8 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "adminUsername": {
-            "value": "${JUMPBOX_USERNAME=workloadadmin}"
-        },
-        "adminPassword": {
-            "value": "${JUMPBOX_PASSWORD}"
+        "useCommonAppServicePlan": {
+            "value": "${COMMON_APP_SERVICE_PLAN=auto}"
         },
         "deployHubVirtualNetwork": {
             "value": "${DEPLOY_HUB_NETWORK=false}"
