@@ -198,7 +198,7 @@ module writeSqlAdminInfo '../../_azure/security/key-vault-secrets.bicep' = if (c
     secrets: [
       { key: 'FieldEngineer--SqlAdministratorUsername', value: sqlAdministratorUsername }
       { key: 'FieldEngineer--SqlAdministratorPassword', value: sqlAdministratorPassword }
-      { key: 'FieldEngineer--SqlConnectionString', value: 'Server=tcp:${created_sqlserver.outputs.hostname},1433;Database=${sqlDatabase.name};User ID=${sqlAdministratorUsername};Password=${sqlAdministratorPassword};Trusted_Connection=False;Encrypt=True;' }
+      { key: 'FieldEngineer--SqlConnectionString', value: 'Server=tcp:${created_sqlserver.outputs.hostname},1433;Database=${sqlDatabase.outputs.name};User ID=${sqlAdministratorUsername};Password=${sqlAdministratorPassword};Trusted_Connection=False;Encrypt=True;' }
     ]
   }
 }
