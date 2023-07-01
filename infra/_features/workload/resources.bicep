@@ -102,9 +102,6 @@ param logAnalyticsWorkspaceId string
 @description('The resource group holding the spoke network resources.')
 param networkingResourceGroupName string
 
-@description('The subnets to use when network isolated.')
-param subnets object
-
 @description('The name of the virtual network holding the subnets.')
 param virtualNetworkName string
 
@@ -165,7 +162,7 @@ module configurationFeature './configuration.bicep' = {
 
     // Settings
     networkIsolationSettings: deploymentSettings.isNetworkIsolated ? {
-      inboundSubnetName: subnets.configuration.name
+      inboundSubnetName: resourceNames.spokeConfigurationSubnet
       outboundSubnetName: ''
       virtualNetworkName: virtualNetworkName
       resourceGroupName: networkingResourceGroupName
@@ -195,7 +192,7 @@ module storageFeature './storage.bicep' = {
 
     // Settings
     networkIsolationSettings: deploymentSettings.isNetworkIsolated ? {
-      inboundSubnetName: subnets.storage.name
+      inboundSubnetName: resourceNames.spokeStorageSubnet
       outboundSubnetName: ''
       virtualNetworkName: virtualNetworkName
       resourceGroupName: networkingResourceGroupName
@@ -244,8 +241,8 @@ module apiServiceFeature './app-service.bicep' = {
     // Settings
     appServiceName: resourceNames.apiAppService
     networkIsolationSettings: deploymentSettings.isNetworkIsolated ? {
-      inboundSubnetName: subnets.apiInbound.name
-      outboundSubnetName: subnets.apiOutbound.name
+      inboundSubnetName: resourceNames.spokeApiInboundSubnet
+      outboundSubnetName: resourceNames.spokeApiOutboundSubnet
       virtualNetworkName: virtualNetworkName
       resourceGroupName: networkingResourceGroupName
     } : {}
@@ -274,8 +271,8 @@ module webServiceFeature './app-service.bicep' = {
     // Settings
     appServiceName: resourceNames.apiAppService
     networkIsolationSettings: deploymentSettings.isNetworkIsolated ? {
-      inboundSubnetName: subnets.webInbound.name
-      outboundSubnetName: subnets.webOutbound.name
+      inboundSubnetName: resourceNames.spokeWebInboundSubnet
+      outboundSubnetName: resourceNames.spokeWebOutboundSubnet
       virtualNetworkName: virtualNetworkName
       resourceGroupName: networkingResourceGroupName
     } : {}

@@ -110,14 +110,14 @@ param logAnalyticsWorkspaceId string = ''
 
 var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'workload' })
 
-var createSpokeResourceGroup = deploymentSettings.isNetworkIsolated && resourceNames.workloadResourceGroup != resourceNames.spokeResourceGroup
+var createSpokeResourceGroup = deploymentSettings.isNetworkIsolated && resourceNames.resourceGroup != resourceNames.spokeResourceGroup
 
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
 
 resource workloadResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = {
-  name: resourceNames.workloadResourceGroup
+  name: resourceNames.resourceGroup
   location: location
   tags: moduleTags
 }

@@ -169,7 +169,7 @@ module peerNetworks '../../_features/networking/peer-networks.bicep' = if (peerT
     hubResourceGroupName: hubResourceGroupName
     hubVirtualNetworkName: hubVirtualNetworkName
     spokeResourceGroupName: spokeResourceGroup.name
-    spokeVirtualNetworkName: spokeNetwork.outputs.virtual_network_name
+    spokeVirtualNetworkName: deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.virtual_network_name : ''
   }
 }
 
@@ -178,5 +178,4 @@ module peerNetworks '../../_features/networking/peer-networks.bicep' = if (peerT
 // ========================================================================
 
 output resource_group_name string = deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.resource_group_name : ''
-output subnets object = deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.subnets : {}
 output virtual_network_name string = deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.virtual_network_name : ''

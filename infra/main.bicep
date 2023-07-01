@@ -245,7 +245,6 @@ module workloadResources './_modules/workload/resources.bicep' = {
     azureMonitorResourceGroupName: workloadServices.outputs.azure_monitor_resource_group_name
     logAnalyticsWorkspaceId: workloadServices.outputs.log_analytics_workspace_id
     networkingResourceGroupName: spokeNetwork.outputs.resource_group_name
-    subnets: spokeNetwork.outputs.subnets
     virtualNetworkName: spokeNetwork.outputs.virtual_network_name
     workloadResourceGroupName: workloadServices.outputs.workload_resource_group_name
 

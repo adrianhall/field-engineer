@@ -146,7 +146,7 @@ module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymen
     tags: moduleTags
 
     // Dependencies
-    logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
+    logAnalyticsWorkspaceId: deploymentSettings.deployHubNetwork ? azureMonitor.outputs.log_analytics_workspace_id : ''
 
     // Additional settings unique to this feature.
     allowedEgressAddresses: allowedEgressAddresses

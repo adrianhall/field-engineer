@@ -95,9 +95,6 @@ param logAnalyticsWorkspaceId string
 @description('The resource group holding the spoke network resources.')
 param networkingResourceGroupName string
 
-@description('The subnets to use when network isolated.')
-param subnets object
-
 @description('The name of the virtual network holding the subnets.')
 param virtualNetworkName string
 
@@ -149,7 +146,6 @@ module workloadFeature '../../_features/workload/resources.bicep' = {
     azureMonitorResourceGroupName: azureMonitorResourceGroupName
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     networkingResourceGroupName: networkingResourceGroupName
-    subnets: subnets
     virtualNetworkName: virtualNetworkName
 
     // Settings
