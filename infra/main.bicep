@@ -101,10 +101,12 @@ var deploymentSettings = {
   deployJumphost: networkIsolation == 'true' && (deployJumphost == 'auto' && deployHubNetwork == 'true')
   isProduction: isProduction
   isNetworkIsolated: isNetworkIsolated
+  location: location
   jumphostIsPublic: jumphostIsPublic
   name: environmentName
   principalId: principalId
   principalType: principalType
+  stage: environmentType
   tags: {
     'azd-env-name': environmentName
     'azd-env-type': environmentType
@@ -139,8 +141,8 @@ var networkSettings = {
       configuration: '10.2.2.0/26'
       storage:       '10.2.2.64/26'
       buildAgent:    '10.2.254.0/26'
-      jumphost:      '10.2.254.64/26'
-      devops:        '10.2.254.128/26'
+      devops:        '10.2.254.64/26'
+      jumphost:      '10.2.254.128/26'
     }
   }
 }
@@ -157,96 +159,147 @@ var networkSettings = {
 module naming './_modules/common/naming.bicep' = {
   name: '${environmentName}-${environmentType}-naming'
   params: {
-    environment: environmentType
-    location: location
+    deploymentSettings: deploymentSettings
     overrides: loadJsonContent('./naming.overrides.jsonc')
-    workloadName: environmentName
   }
 }
 
 /*
-** Create the Hub Network (if requested)
+** Resources are organized into one of four resource groups:
+**
+**  hubResourceGroup      - contains the hub network resources
+**  spokeResourceGroup    - contains the spoke network resources
+**  sqlResourceGroup      - contains the SQL resources
+**  workloadResourceGroup - contains the workload resources 
+** 
+** Not all of the resource groups are necessarily available - it
+** depends on the settings.
 */
-module hubNetwork './_modules/networking/hub.bicep' = {
+module resourceGroups './_modules/common/resource-groups.bicep' = {
+  name: '${environmentName}-${environmentType}-resource-groups'
+  params: {
+    deploymentSettings: deploymentSettings
+    resourceNames: naming.outputs.resourceNames
+  }
+}
+
+/*
+** Create the Azure Monitor components.  This consists of:
+**
+**  A log analytics workspace
+**  An application insights service
+**  A dashboard for the service
+*/
+module azureMonitor './_modules/common/azure-monitor.bicep' = {
+  name: '${environmentName}-${environmentType}-monitoring'
+  params: {
+    deploymentSettings: deploymentSettings
+    resourceGroupName: deploymentSettings.deployHubNetwork ? naming.outputs.resourceNames.hubResourceGroup : naming.outputs.resourceNames.resourceGroup
+    resourceNames: naming.outputs.resourceNames
+  }
+  dependsOn: [
+    resourceGroups
+  ]
+}
+
+/*
+** Create the hub network, if requested. 
+**
+** The hub network consists of the following resources
+**
+**  The hub virtual network with subnets for Bastion Hosts and Firewall
+**  The bastion host
+**  The firewall
+**  A route table that is used within the spoke to reach the firewall
+*/
+module hubNetwork './_modules/networking/hub.bicep' = if (deploymentSettings.deployHubNetwork) {
   name: '${environmentName}-${environmentType}-hub-network'
   params: {
     deploymentSettings: deploymentSettings
     diagnosticSettings: diagnosticSettings
-    location: location
     networkSettings: networkSettings.hub
     resourceNames: naming.outputs.resourceNames
 
+    // Dependencies
+    logAnalyticsWorkspaceId: azureMonitor.outputs.workspace_id
+
+    // Module specific parameters
     allowedEgressAddresses: [
       networkSettings.hub.addressSpace
       networkSettings.spoke.addressSpace
     ]
     unrestrictedEgressAddresses: [
       networkSettings.spoke.addressPrefixes.buildAgent
-      networkSettings.spoke.addressPrefixes.jumphost
       networkSettings.spoke.addressPrefixes.devops
+      networkSettings.spoke.addressPrefixes.jumphost
     ]
   }
-}
-
-/*
-** Create the Workload resource group and Azure Monitor resources (if not in the hub)
-*/
-module workloadServices './_modules/common/resources.bicep' = {
-  name: '${environmentName}-${environmentType}-workload-services'
-  params: {
-    deploymentSettings: deploymentSettings
-    diagnosticSettings: diagnosticSettings
-    location: location
-    resourceNames: naming.outputs.resourceNames
-
-    // Dependencies
-    applicationInsightsName: hubNetwork.outputs.application_insights_name
-    azureMonitorResourceGroupName: hubNetwork.outputs.azure_monitor_resource_group_name
-    logAnalyticsWorkspaceId: hubNetwork.outputs.log_analytics_workspace_id
-  }
+  dependsOn: [
+    resourceGroups
+    azureMonitor
+  ]
 }
 
 /*
 ** Create the Spoke Network (if requested)
+**
+** The spoke network consists of a virtual network with subnets for each
+** component, a set of network security groups to control access, and a
+** set of private DNS zones to support the private endpoints.
 */
-module spokeNetwork './_modules/networking/spoke.bicep' = {
+module spokeNetwork './_modules/networking/spoke.bicep' = if (deploymentSettings.isNetworkIsolated) {
   name: '${environmentName}-${environmentType}-spoke-network'
   params: {
     deploymentSettings: deploymentSettings
     diagnosticSettings: diagnosticSettings
-    location: location
-    networkSettings: networkSettings.hub
+    networkSettings: networkSettings.spoke
     resourceNames: naming.outputs.resourceNames
 
     // Dependencies
-    hubVirtualNetworkName: hubNetwork.outputs.virtual_network_name
-    logAnalyticsWorkspaceId: workloadServices.outputs.log_analytics_workspace_id
-    resourceGroupName: workloadServices.outputs.spoke_resource_group_name
-    routeTableId: hubNetwork.outputs.route_table_id
-
-    // Settings
-    peerToHubNetwork: deploymentSettings.deployHubNetwork
+    logAnalyticsWorkspaceId: azureMonitor.outputs.workspace_id
+    routeTableId: deploymentSettings.deployHubNetwork ? hubNetwork.outputs.route_table_id : ''
   }
+  dependsOn: [
+    resourceGroups
+    azureMonitor
+    hubNetwork
+  ]
 }
 
 /*
-** Create the Workload Resources
+** If we created the hub network, it's also our responsibility to peer the
+** spoke network to the peer network.
+*/
+module peerNetworks './_modules/networking/peer-networks.bicep' = if (deploymentSettings.deployHubNetwork) {
+  name: '${environmentName}-${environmentType}-peer-networks'
+  params: {
+    hubResourceGroupName: naming.outputs.resourceNames.hubResourceGroup
+    hubVirtualNetworkName: naming.outputs.resourceNames.hubVirtualNetwork
+    spokeResourceGroupName: naming.outputs.resourceNames.spokeResourceGroup
+    spokeVirtualNetworkName: naming.outputs.resourceNames.spokeVirtualNetwork
+  }
+  dependsOn: [
+    resourceGroups
+    hubNetwork
+    spokeNetwork
+  ]
+} 
+
+/*
+** Create the resources for the workload.  These will live inside the
+** spoke network, if configured.
 */
 module workloadResources './_modules/workload/resources.bicep' = {
   name: '${environmentName}-${environmentType}-workload-resources'
   params: {
     deploymentSettings: deploymentSettings
     diagnosticSettings: diagnosticSettings
-    location: location
     resourceNames: naming.outputs.resourceNames
 
     // Dependencies
-    applicationInsightsName: workloadServices.outputs.application_insights_name
-    azureMonitorResourceGroupName: workloadServices.outputs.azure_monitor_resource_group_name
-    logAnalyticsWorkspaceId: workloadServices.outputs.log_analytics_workspace_id
-    networkingResourceGroupName: spokeNetwork.outputs.resource_group_name
-    virtualNetworkName: spokeNetwork.outputs.virtual_network_name
-    workloadResourceGroupName: workloadServices.outputs.workload_resource_group_name
+    logAnalyticsWorkspaceId: azureMonitor.outputs.workspace_id
+    configurationSubnetId: deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.configuration_subnet_id : ''
+    storageSubnetId: deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.storage_subnet_id : ''
 
     // Settings
     sqlAdministratorPassword: administratorPassword

@@ -1,3 +1,6 @@
+/*
+** From: infra/_types/DeploymentSettings.bicep
+*/
 @description('Type that describes the global deployment settings')
 type DeploymentSettings = {
   @description('If \'true\', we are deploying hub network resources.')
@@ -12,6 +15,9 @@ type DeploymentSettings = {
   @description('If \'true\', all resources should be secured with a virtual network.')
   isNetworkIsolated: bool
 
+  @description('The primary Azure region to host resources')
+  location: string
+
   @description('If \'true\', the jump host should have a public IP address.')
   jumphostIsPublic: bool
 
@@ -23,6 +29,9 @@ type DeploymentSettings = {
 
   @description('The type of the \'principalId\' property.')
   principalType: 'ServicePrincipal' | 'User'
+
+  @description('The development stage for this application')
+  stage: 'dev' | 'prod'
 
   @description('The common tags that should be used for all created resources')
   tags: object

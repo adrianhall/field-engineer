@@ -36,8 +36,8 @@ param tags object
 /*
 ** Dependencies
 */
-@description('The list of administrator identities to set up if creating the resource')
-param administratorManagedIdentityName string
+@description('The user-assigned managed identity to configure as an administrator.')
+param managedIdentityName string
 
 /*
 ** Settings
@@ -62,7 +62,7 @@ param sqlAdministratorUsername string
 // ========================================================================
 
 resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
-  name: administratorManagedIdentityName
+  name: managedIdentityName
 }
 
 resource sqlServer 'Microsoft.Sql/servers@2021-11-01' =  {

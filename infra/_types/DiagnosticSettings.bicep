@@ -1,3 +1,6 @@
+/*
+** From: infra/_types/DiagnosticSettings.bicep
+*/
 @description('The diagnostic settings for a resource')
 type DiagnosticSettings = {
   @description('The audit log retention policy')

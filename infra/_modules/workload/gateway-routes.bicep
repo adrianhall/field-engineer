@@ -29,6 +29,9 @@ type DeploymentSettings = {
   @description('If \'true\', all resources should be secured with a virtual network.')
   isNetworkIsolated: bool
 
+  @description('The primary Azure region to host resources')
+  location: string
+
   @description('If \'true\', the jump host should have a public IP address.')
   jumphostIsPublic: bool
 
@@ -41,9 +44,12 @@ type DeploymentSettings = {
   @description('The type of the \'principalId\' property.')
   principalType: 'ServicePrincipal' | 'User'
 
+  @description('The development stage for this application')
+  stage: 'dev' | 'prod'
+
   @description('The common tags that should be used for all created resources')
   tags: object
-  
+
   @description('If \'true\', use a common app service plan for workload app services.')
   useCommonAppServicePlan: bool
 }
@@ -65,6 +71,7 @@ type DiagnosticSettings = {
   @description('If true, enable diagnostic logging')
   enableDiagnosticLogs: bool
 }
+
 type FrontDoorRoute = {
   @description('The name of the route; used as a prefix for resources.')
   name: string
@@ -79,66 +86,55 @@ type FrontDoorRoute = {
   privateEndpointResourceId: string
 }
 
-// =====================================================================================================================
-//     PARAMETERS - ALL PARAMETERS ARE REQUIRED IN MODULES
-// =====================================================================================================================
+// ========================================================================
+// PARAMETERS
+// ========================================================================
 
 @description('The global deployment settings')
 param deploymentSettings DeploymentSettings
 
-@description('The global diagnostic settings')
-param diagnosticSettings DiagnosticSettings
-
-@description('The names of all the resources')
-param resourceNames object
-
-@minLength(3)
-@description('The name of the Azure region that will be used for the deployment.')
-param location string
-
-@description('The list of tags to configure on each created resource.')
-param tags object
-
 /*
 ** Dependencies
 */
-@description('The ID of the Log Analytics Workspace to send audit and diagnostic data to.')
-param logAnalyticsWorkspaceId string
+@description('The name of the Azure Front Door Endpoint to configure')
+param frontDoorEndpointName string
 
-// =====================================================================================================================
-//     AZURE RESOURCES
-// =====================================================================================================================
+@description('The name of the Azure Front Door Profile to configure')
+param frontDoorProfileName string
 
-module frontDoor '../../_azure/security/front-door-with-waf.bicep' = {
-  name: 'front-door-with-waf'
+@description('The owner managed identity name')
+param managedIdentityName string
+
+/*
+** Settings
+*/
+@description('The list of Azure Front Door routes to install')
+param frontDoorRoutes FrontDoorRoute[]
+
+// ========================================================================
+// AZURE MODULES
+// ========================================================================
+
+module frontDoorRoute '../../_azure/security/front-door-route.bicep' = [ for r in frontDoorRoutes: {
+  name: '${r.name}-front-door-route'
   params: {
-    frontDoorEndpointName: resourceNames.frontDoorEndpoint
-    frontDoorProfileName: resourceNames.frontDoorProfile
-    webApplicationFirewallName: resourceNames.webApplicationFirewall
-    location: location
-    tags: tags
+    frontDoorEndpointName: frontDoorEndpointName
+    frontDoorProfileName: frontDoorProfileName
+    originPrefix: r.name
+    serviceAddress: r.serviceAddress
+    routePattern: r.routePattern
+    privateLinkSettings: deploymentSettings.isNetworkIsolated && !empty(r.privateEndpointResourceId) ? {
+      privateEndpointResourceId: r.privateEndpointResourceId
+      linkResourceType: 'sites'
+      location: deploymentSettings.location
+    } : {}
+  }
+}]
 
-    // Dependencies
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-
-    // Service settings
-    diagnosticSettings: diagnosticSettings
-    managedRules: deploymentSettings.isProduction ? [
-      { name: 'Microsoft_DefaultRuleSet', version: '2.0' }
-      { name: 'Microsoft_BotManager_RuleSet', version: '1.0' }
-    ] : []
-    sku: deploymentSettings.isProduction || deploymentSettings.isNetworkIsolated ? 'Premium' : 'Standard'
+module approveRoute '../../_azure/security/front-door-route-approval.bicep' = if (deploymentSettings.isNetworkIsolated) {
+  name: 'approve-front-door-endpoints'
+  params: {
+    location: deploymentSettings.location
+    managedIdentityName: managedIdentityName
   }
 }
-
-// =====================================================================================================================
-//     OUTPUTS
-// =====================================================================================================================
-
-output front_door_endpoint_name string = frontDoor.outputs.endpoint_name
-output front_door_profile_name string = frontDoor.outputs.profile_name
-output web_application_firewall_name string = frontDoor.outputs.waf_name
-
-output front_door_id string = frontDoor.outputs.front_door_id
-output hostname string = frontDoor.outputs.hostname
-output uri string = frontDoor.outputs.uri

@@ -3,6 +3,18 @@
 // =====================================================================================================================
 
 /*
+** From: infra/_types/ApplicationIdentity.bicep
+*/
+@description('Type describing an application identity.')
+type ApplicationIdentity = {
+  @description('The ID of the identity')
+  principalId: string
+
+  @description('The type of identity - either ServicePrincipal or User')
+  principalType: 'ServicePrincipal' | 'User'
+}
+
+/*
 ** From infra/_types/DiagnosticSettings.bicep
 */
 @description('The diagnostic settings for a resource')
@@ -18,6 +30,21 @@ type DiagnosticSettings = {
 
   @description('If true, enable diagnostic logging')
   enableDiagnosticLogs: bool
+}
+
+/*
+** From: infra/_types/PrivateEndpointSettings.bicep
+*/
+@description('The settings for a private endpoint')
+type PrivateEndpointSettings = {
+  @description('The name of the private endpoint resource')
+  name: string
+
+  @description('The name of the resource group to hold the private endpoint')
+  resourceGroupName: string
+
+  @description('The ID of the subnet to link the private endpoint to')
+  subnetId: string
 }
 
 // =====================================================================================================================
@@ -48,6 +75,15 @@ param logAnalyticsWorkspaceId string
 @description('Whether or not public endpoint access is allowed for this server')
 param enablePublicNetworkAccess bool = true
 
+@description('The list of application identities to be granted owner access to the workload resources.')
+param ownerIdentities ApplicationIdentity[] = []
+
+@description('If set, the private endpoint settings for this resource')
+param privateEndpointSettings PrivateEndpointSettings?
+
+@description('The list of application identities to be granted reader access to the workload resources.')
+param readerIdentities ApplicationIdentity[] = []
+
 // =====================================================================================================================
 //     VARIABLES
 // =====================================================================================================================
@@ -69,6 +105,12 @@ var diagnosticLogSettings = map(diagnosticLogCategories, category => {
 })
 var logSettings = concat(auditLogSettings, diagnosticLogSettings)
 
+@description('Built in \'Key Vault Administrator\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
+var vaultAdministratorRoleId = '00482a5a-887f-4fb3-b363-3b7fe8e74483'
+
+@description('Built in \'Key Vault Secrets User\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
+var vaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
+
 // =====================================================================================================================
 //     AZURE RESOURCES
 // =====================================================================================================================
@@ -85,6 +127,43 @@ resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' = {
       name: 'standard'
     }
     tenantId: subscription().tenantId
+  }
+}
+
+module grantVaultAdministratorAccess '../../_azure/identity/role-assignment.bicep' = [ for id in ownerIdentities: if (!empty(id.principalId)) {
+  name: 'grant-vaultadmin-${uniqueString(id.principalId)}'
+  params: {
+    principalId: id.principalId
+    principalType: id.principalType
+    roleId: vaultAdministratorRoleId
+  }
+}]
+
+module grantSecretsUserAccess '../../_azure/identity/role-assignment.bicep' = [ for id in readerIdentities: if (!empty(id.principalId)) {
+  name: 'grant-secretsuser-${uniqueString(id.principalId)}'
+  params: {
+    principalId: id.principalId
+    principalType: id.principalType
+    roleId: vaultSecretsUserRoleId
+  }
+}]
+
+module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (privateEndpointSettings != null) {
+  name: 'key-vault-private-endpoint'
+  scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
+  params: {
+    name: privateEndpointSettings!.name
+    location: location
+    tags: tags
+
+    // Dependencies
+    linkServiceName: keyVault.name
+    linkServiceId: keyVault.id
+    subnetResourceId: privateEndpointSettings!.subnetId
+
+    // Settings
+    dnsZoneName: 'privatelink.vaultcore.azure.net'
+    groupIds: [ 'vault' ]
   }
 }
 

@@ -20,6 +20,21 @@ type DiagnosticSettings = {
   enableDiagnosticLogs: bool
 }
 
+/*
+** From: infra/_types/PrivateEndpointSettings.bicep
+*/
+@description('The settings for a private endpoint')
+type PrivateEndpointSettings = {
+  @description('The name of the private endpoint resource')
+  name: string
+
+  @description('The name of the resource group to hold the private endpoint')
+  resourceGroupName: string
+
+  @description('The ID of the subnet to link the private endpoint to')
+  subnetId: string
+}
+
 // ========================================================================
 //     PARAMETERS
 // ========================================================================
@@ -50,6 +65,9 @@ param sqlServerName string
 */
 @description('The number of DTUs to allocate to the database.')
 param dtuCapacity int
+
+@description('If set, the private endpoint settings for this resource')
+param privateEndpointSettings PrivateEndpointSettings?
 
 @allowed([ 'Basic', 'Standard', 'Premium' ])
 @description('The tier or edition of the SKU')
@@ -111,6 +129,25 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2021-11-01' = {
     readScale: sku == 'Premium' ? 'Enabled' : 'Disabled'
     collation: 'SQL_Latin1_General_CP1_CI_AS'
     zoneRedundant: zoneRedundant
+  }
+}
+
+module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (privateEndpointSettings != null) {
+  name: 'private-endpoint-for-sqldb'
+  scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
+  params: {
+    name: privateEndpointSettings!.name
+    location: location
+    tags: tags
+
+    // Dependencies
+    linkServiceName: '${sqlServer.name}/${sqlDatabase.name}'
+    linkServiceId: sqlServer.id
+    subnetResourceId: privateEndpointSettings!.subnetId
+
+    // Settings:
+    dnsZoneName: 'privatelink${az.environment().suffixes.sqlServerHostname}'
+    groupIds: [ 'sqlServer' ]
   }
 }
 

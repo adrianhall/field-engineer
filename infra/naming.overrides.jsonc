@@ -28,7 +28,7 @@
     // "spokeBuildAgentSubnet": "",
     // "spokeConfigurationSubnet": "",
     // "spokeDevopsSubnet": "",
-    // "spokeJumpboxSubnet": "",
+    // "spokeJumphostSubnet": "",
     // "spokeStorageSubnet": "",
     // "spokeWebInboundSubnet": "",
     // "spokeWebOutboundSubnet": "",
@@ -69,12 +69,12 @@
     // "webPrivateEndpoint": "",
 
     /*
-    ** Administrative Resources - Jumpbox, Build Agents, etc.
+    ** Administrative Resources - Jumphost, Build Agents, etc.
     */
     // "buildAgent": "",
     // "buildAgentPublicIpAddress": "",
-    // "jumpbox": "",
-    // "jumpboxPublicIpAddress": "",
+    // "jumphost": "",
+    // "jumphostPublicIpAddress": "",
 
     /*
     ** Administrator Usernames

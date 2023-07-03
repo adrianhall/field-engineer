@@ -3,6 +3,18 @@
 // =====================================================================================================================
 
 /*
+** From: infra/_types/ApplicationIdentity.bicep
+*/
+@description('Type describing an application identity.')
+type ApplicationIdentity = {
+  @description('The ID of the identity')
+  principalId: string
+
+  @description('The type of identity - either ServicePrincipal or User')
+  principalType: 'ServicePrincipal' | 'User'
+}
+
+/*
 ** From infra/_types/DiagnosticSettings.bicep
 */
 @description('The diagnostic settings for a resource')
@@ -18,6 +30,21 @@ type DiagnosticSettings = {
 
   @description('If true, enable diagnostic logging')
   enableDiagnosticLogs: bool
+}
+
+/*
+** From: infra/_types/PrivateEndpointSettings.bicep
+*/
+@description('The settings for a private endpoint')
+type PrivateEndpointSettings = {
+  @description('The name of the private endpoint resource')
+  name: string
+
+  @description('The name of the resource group to hold the private endpoint')
+  resourceGroupName: string
+
+  @description('The ID of the subnet to link the private endpoint to')
+  subnetId: string
 }
 
 // =====================================================================================================================
@@ -48,6 +75,15 @@ param logAnalyticsWorkspaceId string
 @description('Whether or not public endpoint access is allowed for this server')
 param enablePublicNetworkAccess bool = true
 
+@description('The list of application identities to be granted owner access to the workload resources.')
+param ownerIdentities ApplicationIdentity[] = []
+
+@description('If set, the private endpoint settings for this resource')
+param privateEndpointSettings PrivateEndpointSettings?
+
+@description('The list of application identities to be granted reader access to the workload resources.')
+param readerIdentities ApplicationIdentity[] = []
+
 @allowed([ 'Free', 'Standard'])
 @description('The pricing tier for the resource; note that Standard is required for network isolation.')
 param sku string = 'Free'
@@ -73,6 +109,12 @@ var diagnosticLogSettings = map(diagnosticLogCategories, category => {
 })
 var logSettings = concat(auditLogSettings, diagnosticLogSettings)
 
+@description('Built in \'App Configuration Data Owner\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
+var dataOwnerRoleId = '5ae67dd6-50cb-40e7-96ff-dc2bfa4b606b'
+
+@description('Built in \'App Configuration Data Reader\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
+var dataReaderRoleId = '516239f1-63e1-4d78-a4de-a74fb236a071'
+
 // =====================================================================================================================
 //     AZURE RESOURCES
 // =====================================================================================================================
@@ -86,6 +128,43 @@ resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-0
   }
   properties: {
     publicNetworkAccess: enablePublicNetworkAccess ? 'Enabled' : 'Disabled'
+  }
+}
+
+module grantDataOwnerAccess '../../_azure/identity/role-assignment.bicep' = [ for id in ownerIdentities: if (!empty(id.principalId)) {
+  name: 'grant-dataowner-${uniqueString(id.principalId)}'
+  params: {
+    principalId: id.principalId
+    principalType: id.principalType
+    roleId: dataOwnerRoleId
+  }
+}]
+
+module grantDataReaderAccess '../../_azure/identity/role-assignment.bicep' = [ for id in readerIdentities: if (!empty(id.principalId)) {
+  name: 'grant-datareader-${uniqueString(id.principalId)}'
+  params: {
+    principalId: id.principalId
+    principalType: id.principalType
+    roleId: dataReaderRoleId
+  }
+}]
+
+module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (privateEndpointSettings != null) {
+  name: 'app-configuration-private-endpoint'
+  scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
+  params: {
+    name: privateEndpointSettings!.name
+    location: location
+    tags: tags
+
+    // Dependencies
+    linkServiceName: appConfiguration.name
+    linkServiceId: appConfiguration.id
+    subnetResourceId: privateEndpointSettings!.subnetId
+
+    // Settings
+    dnsZoneName: 'privatelink.azconfig.io'
+    groupIds: [ 'configurationStores' ]
   }
 }
 

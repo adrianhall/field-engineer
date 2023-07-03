@@ -8,30 +8,71 @@ targetScope = 'subscription'
 //
 // ========================================================================
 
+// ========================================================================
+// USER-DEFINED TYPES
+// ========================================================================
+
 /*
-** This module provides default names for all the resources used in the
-** application. This names can be over-ridden using the naming overrides.
+** From: infra/_types/DeploymentSettings.bicep
 */
+@description('Type that describes the global deployment settings')
+type DeploymentSettings = {
+  @description('If \'true\', we are deploying hub network resources.')
+  deployHubNetwork: bool
 
-@allowed([ 'dev', 'prod' ])
-@description('The stage if the development lifecycle for the workload.')
-param environment string = 'dev'
+  @description('If \'true\', we are deploying a jump host.')
+  deployJumphost: bool
 
-@minLength(3)
-@description('The region that the services are to be deployed into.')
-param location string
+  @description('If \'true\', use production SKUs and settings.')
+  isProduction: bool
+
+  @description('If \'true\', all resources should be secured with a virtual network.')
+  isNetworkIsolated: bool
+
+  @description('The primary Azure region to host resources')
+  location: string
+
+  @description('If \'true\', the jump host should have a public IP address.')
+  jumphostIsPublic: bool
+
+  @description('The name of the workload.')
+  name: string
+
+  @description('The ID of the principal that is being used to deploy resources.')
+  principalId: string
+
+  @description('The type of the \'principalId\' property.')
+  principalType: 'ServicePrincipal' | 'User'
+
+  @description('The development stage for this application')
+  stage: 'dev' | 'prod'
+
+  @description('The common tags that should be used for all created resources')
+  tags: object
+
+  @description('If \'true\', use a common app service plan for workload app services.')
+  useCommonAppServicePlan: bool
+}
+
+// ========================================================================
+// PARAMETERS
+// ========================================================================
+
+@description('The global deployment settings')
+param deploymentSettings DeploymentSettings
 
 @description('The overrides for the naming scheme.  Load this from the naming.overrides.jsonc file.')
 param overrides object = {}
 
-@minLength(3)
-@description('The environment name - a unique string that is used to identify THIS deployment.')
-param workloadName string
-
 /*
 ** This is a unique token that will be used as a differentiator for all resources.
 */
-var resourceToken = uniqueString(subscription().id, workloadName, location, environment)
+var resourceToken = uniqueString(subscription().id, deploymentSettings.name, deploymentSettings.location, deploymentSettings.stage)
+
+/*
+** This is the split-out common prefix for resource groups.
+*/
+var resourceGroupPrefix = 'rg-${deploymentSettings.name}-${deploymentSettings.stage}-${deploymentSettings.location}'
 
 /*
 ** This is the list of resource names that are used in the application.  For the list of
@@ -43,7 +84,7 @@ var defaultResourceNames = {
     /*
     ** Hub Networking Resources
     */
-    hubResourceGroup: 'rg-${workloadName}-${environment}-${location}-hub'
+    hubResourceGroup: '${resourceGroupPrefix}-hub'
     hubBastionPublicIpAddress: 'pip-bas-${resourceToken}'
     hubBastionSubnet: 'AzureBastionSubnet'
     hubBastion: 'bas-${resourceToken}'
@@ -64,11 +105,11 @@ var defaultResourceNames = {
     spokeBuildAgentSubnet: 'BuildAgentSubnet'
     spokeConfigurationSubnet: 'ConfigurationSubnet'
     spokeDevopsSubnet: 'DevopsSubnet'
-    spokeJumpboxSubnet: 'JumpboxSubnet'
+    spokeJumphostSubnet: 'JumphostSubnet'
     spokeStorageSubnet: 'StorageSubnet'
     spokeWebInboundSubnet: 'WebInboundSubnet'
     spokeWebOutboundSubnet: 'WebOutboundSubnet'
-    spokeResourceGroup: 'rg-${workloadName}-${environment}-${location}-spoke'
+    spokeResourceGroup: '${resourceGroupPrefix}-spoke'
     spokeVirtualNetwork: 'vnet-spoke-${resourceToken}'
     storageNetworkSecurityGroup: 'nsg-storage-${resourceToken}'
 
@@ -94,11 +135,11 @@ var defaultResourceNames = {
     keyVault: 'kv-${resourceToken}'
     keyVaultPrivateEndpoint: 'pe-kv-${resourceToken}'
     ownerManagedIdentity: 'id-owner-${resourceToken}'
-    resourceGroup: 'rg-${workloadName}-${environment}-${location}-workload'
+    resourceGroup: '${resourceGroupPrefix}-workload'
     sqlDatabase: 'fieldengineer-${resourceToken}'
     sqlDatabasePrivateEndpoint: 'pe-sqldb-${resourceToken}'
     sqlServer: 'sql-${resourceToken}'
-    sqlResourceGroup: 'rg-${workloadName}-${environment}-${location}-workload'
+    sqlResourceGroup: '${resourceGroupPrefix}-workload'
     webAppService: 'app-web-${resourceToken}'
     webAppServicePlan: 'asp-web-${resourceToken}'
     webApplicationFirewall: 'waf${resourceToken}'
@@ -106,12 +147,12 @@ var defaultResourceNames = {
     webPrivateEndpoint: 'pe-web-${resourceToken}'
 
     /*
-    ** Administrative Resources - Jumpbox, Build Agents, etc.
+    ** Administrative Resources - jumphost, Build Agents, etc.
     */
     buildAgent: 'vm-build-${resourceToken}'
     buildAgentPublicIpAddress: 'pip-build-${resourceToken}'
-    jumpbox: 'vm-jump-${resourceToken}'
-    jumpboxPublicIpAddress: 'pip-jump-${resourceToken}'
+    jumphost: 'vm-jump-${resourceToken}'
+    jumphostPublicIpAddress: 'pip-jump-${resourceToken}'
 
     /*
     ** Usernames
@@ -150,7 +191,7 @@ output resourceNames object = {
     spokeBuildAgentSubnet: contains(overrides, 'spokeBuildAgentSubnet') && !empty(overrides.spokeBuildAgentSubnet) ? overrides.spokeBuildAgentSubnet : defaultResourceNames.spokeBuildAgentSubnet
     spokeConfigurationSubnet: contains(overrides, 'spokeConfigurationSubnet') && !empty(overrides.spokeConfigurationSubnet) ? overrides.spokeConfigurationSubnet : defaultResourceNames.spokeConfigurationSubnet
     spokeDevopsSubnet: contains(overrides, 'spokeDevopsSubnet') && !empty(overrides.spokeDevopsSubnet) ? overrides.spokeDevopsSubnet : defaultResourceNames.spokeDevopsSubnet
-    spokeJumpboxSubnet: contains(overrides, 'spokeJumpboxSubnet') && !empty(overrides.spokeJumpboxSubnet) ? overrides.spokeJumpboxSubnet : defaultResourceNames.spokeJumpboxSubnet
+    spokeJumphostSubnet: contains(overrides, 'spokejumphostSubnet') && !empty(overrides.spokeJumphostSubnet) ? overrides.spokeJumphostSubnet : defaultResourceNames.spokeJumphostSubnet
     spokeStorageSubnet: contains(overrides, 'spokeStorageSubnet') && !empty(overrides.spokeStorageSubnet) ? overrides.spokeStorageSubnet : defaultResourceNames.spokeStorageSubnet
     spokeWebInboundSubnet: contains(overrides, 'spokeWebInboundSubnet') && !empty(overrides.spokeWebInboundSubnet) ? overrides.spokeWebInboundSubnet : defaultResourceNames.spokeWebInboundSubnet
     spokeWebOutboundSubnet: contains(overrides, 'spokeWebOutboundSubnet') && !empty(overrides.spokeWebOutboundSubnet) ? overrides.spokeWebOutboundSubnet : defaultResourceNames.spokeWebOutboundSubnet
@@ -192,12 +233,12 @@ output resourceNames object = {
     webPrivateEndpoint: contains(overrides, 'webPrivateEndpoint') && !empty(overrides.webPrivateEndpoint) ? overrides.webPrivateEndpoint : defaultResourceNames.webPrivateEndpoint
 
     /*
-    ** Administrative Resources - Jumpbox, Build Agents, etc.
+    ** Administrative Resources - jumphost, Build Agents, etc.
     */
     buildAgent: contains(overrides, 'buildAgent') && !empty(overrides.buildAgent) ? overrides.buildAgent : defaultResourceNames.buildAgent
     buildAgentPublicIpAddress: contains(overrides, 'buildAgentPublicIpAddress') && !empty(overrides.buildAgentPublicIpAddress) ? overrides.buildAgentPublicIpAddress : defaultResourceNames.buildAgentPublicIpAddress
-    jumpbox: contains(overrides, 'jumpbox') && !empty(overrides.jumpbox) ? overrides.jumpbox : defaultResourceNames.jumpbox
-    jumpboxPublicIpAddress: contains(overrides, 'jumpboxPublicIpAddress') && !empty(overrides.jumpboxPublicIpAddress) ? overrides.jumpboxPublicIpAddress : defaultResourceNames.jumpboxPublicIpAddress
+    jumphost: contains(overrides, 'jumphost') && !empty(overrides.jumphost) ? overrides.jumphost : defaultResourceNames.jumphost
+    jumphostPublicIpAddress: contains(overrides, 'jumphostPublicIpAddress') && !empty(overrides.jumphostPublicIpAddress) ? overrides.jumphostPublicIpAddress : defaultResourceNames.jumphostPublicIpAddress
 
     /*
     ** Administrator Usernames

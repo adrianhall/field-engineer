@@ -63,8 +63,12 @@ param enablePublicNetworkAccess bool = true
 @description('IP Security Restrictions to configure')
 param ipSecurityRestrictions object[] = []
 
+@description('The programming stack to use')
+param linuxFxVersion string = 'DOTNETCORE|6.0'
+
 @description('The service prefix - used to tag the resource for azd deployment')
 param servicePrefix string
+
 
 // For a list of all categories that this resource supports, see: https://learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories
 var auditLogCategories = diagnosticSettings.enableAuditLogs ? [
@@ -98,6 +102,7 @@ var defaultAppServiceProperties = {
     alwaysOn: true
     detailedErrorLoggingEnabled: diagnosticSettings.enableDiagnosticLogs
     httpLoggingEnabled: diagnosticSettings.enableDiagnosticLogs
+    linuxFxVersion: linuxFxVersion
     requestTracingEnabled: diagnosticSettings.enableDiagnosticLogs
     ftpsState: 'Disabled'
     ipSecurityRestrictions: ipSecurityRestrictions

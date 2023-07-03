@@ -47,6 +47,9 @@ type DeploymentSettings = {
   @description('If \'true\', all resources should be secured with a virtual network.')
   isNetworkIsolated: bool
 
+  @description('The primary Azure region to host resources')
+  location: string
+
   @description('If \'true\', the jump host should have a public IP address.')
   jumphostIsPublic: bool
 
@@ -59,9 +62,12 @@ type DeploymentSettings = {
   @description('The type of the \'principalId\' property.')
   principalType: 'ServicePrincipal' | 'User'
 
+  @description('The development stage for this application')
+  stage: 'dev' | 'prod'
+
   @description('The common tags that should be used for all created resources')
   tags: object
-  
+
   @description('If \'true\', use a common app service plan for workload app services.')
   useCommonAppServicePlan: bool
 }
@@ -84,7 +90,6 @@ type NetworkIsolationSettings = {
   resourceGroupName: string
 }
 
-
 // ========================================================================
 // PARAMETERS
 // ========================================================================
@@ -95,12 +100,8 @@ param deploymentSettings DeploymentSettings
 @description('The global diagnostic settings')
 param diagnosticSettings DiagnosticSettings
 
-@minLength(3)
-@description('The name of the Azure region that will be used for the deployment.')
-param location string
-
-@description('The list of tags to configure on each created resource.')
-param tags object
+@description('The tags to use for the created resources')
+param tags object = {}
 
 /*
 ** Dependencies
@@ -108,14 +109,14 @@ param tags object
 @description('The Application Insights resource to use for logging')
 param applicationInsightsName string
 
-@description('The name of the resource group holding the Application Insights resource')
-param applicationInsightsResourceGroupName string
-
 @description('The App Configuration resource to use for configuration')
 param appConfigurationName string
 
 @description('The name of the App Service Plan to use for compute')
 param appServicePlanName string
+
+@description('The name of the resource group holding the Application Insights resource')
+param azureMonitorResourceGroupName string
 
 @description('The name of the Key Vault for secrets')
 param keyVaultName string
@@ -144,12 +145,15 @@ param restrictToAzureFrontDoor string = ''
 @description('The service prefix to use for this service')
 param servicePrefix string
 
+@description('The programming stack to use')
+param stack string = 'DOTNETCORE|6.0'
+
 // =====================================================================================================================
 //     VARIABLES
 // =====================================================================================================================
 
-var inboundSubnetId = deploymentSettings.isNetworkIsolated && networkIsolationSettings != null ? resourceId(networkIsolationSettings!.resourceGroupName, 'Microsoft.Network/virtualNetworks/subnets', networkIsolationSettings!.virtualNetworkName, networkIsolationSettings!.inboundSubnetName ?? '') : ''
-var outboundSubnetId = deploymentSettings.isNetworkIsolated && networkIsolationSettings != null ? resourceId(networkIsolationSettings!.resourceGroupName, 'Microsoft.Network/virtualNetworks/subnets', networkIsolationSettings!.virtualNetworkName, networkIsolationSettings!.outboundSubnetName ?? '') : ''
+var inboundSubnetId = networkIsolationSettings != null ? resourceId(networkIsolationSettings!.resourceGroupName, 'Microsoft.Network/virtualNetworks/subnets', networkIsolationSettings!.virtualNetworkName, networkIsolationSettings!.inboundSubnetName ?? '') : ''
+var outboundSubnetId = networkIsolationSettings != null ? resourceId(networkIsolationSettings!.resourceGroupName, 'Microsoft.Network/virtualNetworks/subnets', networkIsolationSettings!.virtualNetworkName, networkIsolationSettings!.outboundSubnetName ?? '') : ''
 
 // =====================================================================================================================
 //     AZURE RESOURCES
@@ -165,7 +169,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' existing = {
 
 resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing = {
   name: applicationInsightsName
-  scope: resourceGroup(applicationInsightsResourceGroupName)
+  scope: resourceGroup(azureMonitorResourceGroupName)
 }
 
 // =====================================================================================================================
@@ -175,7 +179,7 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' existing
 module appServicePlan '../../_azure/hosting/app-service-plan.bicep' = if (!deploymentSettings.useCommonAppServicePlan) {
   name: '${servicePrefix}-app-service-plan'
   params: {
-    location: location
+    location: deploymentSettings.location
     name: appServicePlanName
     tags: tags
 
@@ -193,7 +197,7 @@ module appServicePlan '../../_azure/hosting/app-service-plan.bicep' = if (!deplo
 module appService '../../_azure/hosting/app-service.bicep' = {
   name: '${servicePrefix}-app-service'
   params: {
-    location: location
+    location: deploymentSettings.location
     name: appServiceName
     tags: tags
 
@@ -222,6 +226,7 @@ module appService '../../_azure/hosting/app-service.bicep' = {
     }
     diagnosticSettings: diagnosticSettings
     enablePublicNetworkAccess: !deploymentSettings.isNetworkIsolated
+    linuxFxVersion: stack
     ipSecurityRestrictions: !empty(restrictToAzureFrontDoor) ? [
       {
         tag: 'ServiceTag'
@@ -238,12 +243,12 @@ module appService '../../_azure/hosting/app-service.bicep' = {
   }
 }
 
-module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (deploymentSettings.isNetworkIsolated && networkIsolationSettings != null) {
+module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (networkIsolationSettings != null) {
   name: '${servicePrefix}-appsvc-private-endpoint'
-  scope: resourceGroup(networkIsolationSettings != null ? networkIsolationSettings!.resourceGroupName : resourceGroup().name)
+  scope: resourceGroup(networkIsolationSettings!.resourceGroupName)
   params: {
     name: privateEndpointName
-    location: location
+    location: deploymentSettings.location
     tags: tags
 
     // Dependencies
@@ -265,4 +270,3 @@ output app_service_id string = appService.outputs.id
 output app_service_name string = appService.outputs.name
 output app_service_hostname string = appService.outputs.hostname
 output app_service_uri string = appService.outputs.uri
-output private_endpoint_resource_id string = deploymentSettings.isNetworkIsolated ? privateEndpoint.outputs.id : ''

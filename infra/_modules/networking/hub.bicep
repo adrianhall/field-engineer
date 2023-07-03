@@ -3,9 +3,13 @@ targetScope = 'subscription'
 // ========================================================================
 //
 //  Field Engineer Application
-//  Hub Networking Resources
+//  Hub Network Resources
 //  Copyright (C) 2023 Microsoft, Inc.
 //
+// ========================================================================
+
+// ========================================================================
+// USER-DEFINED TYPES
 // ========================================================================
 
 /*
@@ -25,6 +29,9 @@ type DeploymentSettings = {
   @description('If \'true\', all resources should be secured with a virtual network.')
   isNetworkIsolated: bool
 
+  @description('The primary Azure region to host resources')
+  location: string
+
   @description('If \'true\', the jump host should have a public IP address.')
   jumphostIsPublic: bool
 
@@ -37,15 +44,18 @@ type DeploymentSettings = {
   @description('The type of the \'principalId\' property.')
   principalType: 'ServicePrincipal' | 'User'
 
+  @description('The development stage for this application')
+  stage: 'dev' | 'prod'
+
   @description('The common tags that should be used for all created resources')
   tags: object
-  
+
   @description('If \'true\', use a common app service plan for workload app services.')
   useCommonAppServicePlan: bool
 }
 
 /*
-** From infra/_types/DiagnosticSettings.bicep
+** From: infra/_types/DiagnosticSettings.bicep
 */
 @description('The diagnostic settings for a resource')
 type DiagnosticSettings = {
@@ -78,22 +88,24 @@ type NetworkSettings = {
 // PARAMETERS
 // ========================================================================
 
-
 @description('The global deployment settings')
 param deploymentSettings DeploymentSettings
 
 @description('The global diagnostic settings')
 param diagnosticSettings DiagnosticSettings
 
-@minLength(3)
-@description('The name of the Azure region that will be used for the deployment.')
-param location string
-
 @description('The network settings for the hub network')
 param networkSettings NetworkSettings
 
 @description('The list of resource names to use')
 param resourceNames object
+
+
+/*
+** Dependencies
+*/
+@description('The Log Analytics Workspace to send diagnostic and audit data to')
+param logAnalyticsWorkspaceId string
 
 /*
 ** Module specific settings
@@ -108,49 +120,185 @@ param unrestrictedEgressAddresses string[] = []
 // VARIABLES
 // ========================================================================
 
-var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'hub-network' })
+var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'hub', 'azd-function': 'networking' })
 
-// ========================================================================
-// AZURE RESOURCES
-// ========================================================================
+// Some helpers for the firewall rules
+var allowTraffic = { type: 'allow' }
+var httpProtocol  = { port: '80', protocolType: 'HTTP' }
+var httpsProtocol = { port: '443', protocolType: 'HTTPS' }
+var azureFqdns = loadJsonContent('./azure-fqdns.jsonc')
 
-resource hubResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = if (deploymentSettings.deployHubNetwork) {
-  name: resourceNames.hubResourceGroup
-  location: location
-  tags: moduleTags
-}
-
-// ========================================================================
-// FEATURE MODULES
-// ========================================================================
-
-module azureMonitor '../../_features/monitoring/azure-monitor.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: 'hub-azure-monitor'
-  scope: hubResourceGroup
-  params: {
-    location: location
-    resourceNames: resourceNames
-    tags: moduleTags
+// The firewall application rules
+var applicationRuleCollections = [
+  {
+    name: 'Azure-Monitor'
+    properties: {
+      action: allowTraffic
+      priority: 201
+      rules: [
+        {
+          name: 'allow-azure-monitor'
+          protocols: [ httpsProtocol ]
+          sourceAddresses: allowedEgressAddresses
+          targetFqdns: azureFqdns.azureMonitor
+        }
+      ]
+    }
   }
+  {
+    name: 'Core-Dependencies'
+    properties: {
+      action: allowTraffic
+      priority: 200
+      rules: [
+        {
+          name: 'allow-core-apis'
+          protocols: [ httpsProtocol ]
+          sourceAddresses: allowedEgressAddresses
+          targetFqdns: azureFqdns.coreServices
+        }
+        {
+          name: 'allow-developer-services'
+          protocols: [ httpsProtocol ]
+          sourceAddresses: allowedEgressAddresses
+          targetFqdns: azureFqdns.developerServices
+        }
+        {
+          name: 'allow-certificate-dependencies'
+          protocols: [ httpProtocol, httpsProtocol ]
+          sourceAddresses: allowedEgressAddresses
+          targetFqdns: azureFqdns.certificateServices
+        }
+      ]
+    }
+  }
+]
+
+// The firewall network rules
+var networkRuleCollections = !empty(unrestrictedEgressAddresses) ? [
+  {
+    name: 'Unrestricted-Outbound'
+    properties: {
+      action: allowTraffic
+      priority: 100
+      rules: [
+        {
+          name: 'allow-unrestricted-outbound'
+          destinationAddresses: [ '*' ]
+          destinationPorts: [ '443' ]
+          protocols: [ 'TCP' ]
+          sourceAddresses: unrestrictedEgressAddresses
+        }
+      ]
+    }
+  }
+] : []
+
+// ========================================================================
+// AZURE EXISTING RESOURCES
+// ========================================================================
+
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' existing = {
+  name: resourceNames.hubResourceGroup
 }
 
-module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: 'hub-resources'
-  scope: hubResourceGroup
+// ========================================================================
+// AZURE MODULES
+// ========================================================================
+
+module virtualNetwork '../../_azure/networking/virtual-network.bicep' = {
+  name: 'hub-virtual-network'
+  scope: resourceGroup
   params: {
-    deploymentSettings: deploymentSettings
-    diagnosticSettings: diagnosticSettings
-    location: location
-    networkSettings: networkSettings
-    resourceNames: resourceNames
+    location: deploymentSettings.location
+    name: resourceNames.hubVirtualNetwork
     tags: moduleTags
 
     // Dependencies
-    logAnalyticsWorkspaceId: deploymentSettings.deployHubNetwork ? azureMonitor.outputs.log_analytics_workspace_id : ''
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
 
-    // Additional settings unique to this feature.
-    allowedEgressAddresses: allowedEgressAddresses
-    unrestrictedEgressAddresses: unrestrictedEgressAddresses
+    // Settings
+    addressSpace: networkSettings.addressSpace
+    diagnosticSettings: diagnosticSettings
+    subnets: [
+      {
+        name: resourceNames.hubBastionSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.bastion
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+      {
+        name: resourceNames.hubFirewallSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.firewall
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+    ]
+  }
+}
+
+module bastionHost '../../_azure/security/bastion.bicep' = {
+  name: 'hub-bastion-host'
+  scope: resourceGroup
+  params: {
+    location: deploymentSettings.location
+    name: resourceNames.hubBastion
+    publicIpAddressName: resourceNames.hubBastionPublicIpAddress
+    tags: moduleTags
+
+    // Dependencies
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+
+    // Settings
+    diagnosticSettings: diagnosticSettings
+    enablePublicIpAddress: true
+    sku: deploymentSettings.isProduction ? 'Standard' : 'Basic'
+    subnetId: virtualNetwork.outputs.subnets[0].id
+    zoneRedundant: deploymentSettings.isProduction
+  }
+}
+
+module firewall '../../_azure/security/firewall.bicep' = {
+  name: 'hub-firewall'
+  scope: resourceGroup
+  params: {
+    location: deploymentSettings.location
+    name: resourceNames.hubFirewall
+    publicIpAddressName: resourceNames.hubFirewallPublicIpAddress
+    tags: moduleTags
+
+    // Dependencies
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+
+    // Settings
+    applicationRuleCollections: applicationRuleCollections
+    diagnosticSettings: diagnosticSettings
+    networkRuleCollections: networkRuleCollections
+    subnetId: virtualNetwork.outputs.subnets[1].id
+  }
+}
+
+module routeTable '../../_azure/networking/route-table.bicep' = {
+  name: 'hub-route-table'
+  scope: resourceGroup
+  params: {
+    location: deploymentSettings.location
+    name: resourceNames.hubRouteTable
+    tags: moduleTags
+
+    // Settings
+    routes: [
+      {
+        name: 'defaultEgress'
+        properties: {
+          addressPrefix: '0.0.0.0/0'
+          nextHopIpAddress: firewall.outputs.internal_ip_address
+          nextHopType: 'VirtualAppliance'
+        }
+      }
+    ]
   }
 }
 
@@ -158,11 +306,6 @@ module hubNetwork '../../_features/networking/hub-network.bicep' = if (deploymen
 // OUTPUTS
 // ========================================================================
 
-output bastion_hostname string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.bastion_hostname : ''
-output firewall_hostname string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.firewall_hostname : ''
-output route_table_id string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.route_table_id : ''
-output virtual_network_name string = deploymentSettings.deployHubNetwork ? hubNetwork.outputs.virtual_network_name : ''
-
-output application_insights_name string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.application_insights_name : ''
-output azure_monitor_resource_group_name string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.resource_group_name : ''
-output log_analytics_workspace_id string = deploymentSettings.deployHubNetwork ? azureMonitor.outputs.log_analytics_workspace_id : ''
+output bastion_hostname string = bastionHost.outputs.hostname
+output firewall_hostname string = firewall.outputs.hostname
+output route_table_id string = routeTable.outputs.id

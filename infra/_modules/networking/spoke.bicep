@@ -3,9 +3,13 @@ targetScope = 'subscription'
 // ========================================================================
 //
 //  Field Engineer Application
-//  Spoke Networking Resources
+//  Hub Network Resources
 //  Copyright (C) 2023 Microsoft, Inc.
 //
+// ========================================================================
+
+// ========================================================================
+// USER-DEFINED TYPES
 // ========================================================================
 
 /*
@@ -25,6 +29,9 @@ type DeploymentSettings = {
   @description('If \'true\', all resources should be secured with a virtual network.')
   isNetworkIsolated: bool
 
+  @description('The primary Azure region to host resources')
+  location: string
+
   @description('If \'true\', the jump host should have a public IP address.')
   jumphostIsPublic: bool
 
@@ -37,15 +44,18 @@ type DeploymentSettings = {
   @description('The type of the \'principalId\' property.')
   principalType: 'ServicePrincipal' | 'User'
 
+  @description('The development stage for this application')
+  stage: 'dev' | 'prod'
+
   @description('The common tags that should be used for all created resources')
   tags: object
-  
+
   @description('If \'true\', use a common app service plan for workload app services.')
   useCommonAppServicePlan: bool
 }
 
 /*
-** From infra/_types/DiagnosticSettings.bicep
+** From: infra/_types/DiagnosticSettings.bicep
 */
 @description('The diagnostic settings for a resource')
 type DiagnosticSettings = {
@@ -78,16 +88,11 @@ type NetworkSettings = {
 // PARAMETERS
 // ========================================================================
 
-
 @description('The global deployment settings')
 param deploymentSettings DeploymentSettings
 
 @description('The global diagnostic settings')
 param diagnosticSettings DiagnosticSettings
-
-@minLength(3)
-@description('The name of the Azure region that will be used for the deployment.')
-param location string
 
 @description('The network settings for the hub network')
 param networkSettings NetworkSettings
@@ -95,20 +100,12 @@ param networkSettings NetworkSettings
 @description('The list of resource names to use')
 param resourceNames object
 
+
 /*
 ** Dependencies
 */
-@description('If set, the hub resource group name that will be used for peering')
-param hubResourceGroupName string = ''
-
-@description('If set, the hub virtual network name that will be used for peering')
-param hubVirtualNetworkName string = ''
-
 @description('The Log Analytics Workspace to send diagnostic and audit data to')
 param logAnalyticsWorkspaceId string
-
-@description('The resource group name for the spoke networking resources')
-param resourceGroupName string = ''
 
 @description('If set, the route table holding the outbound route for the hub network')
 param routeTableId string = ''
@@ -116,66 +113,327 @@ param routeTableId string = ''
 /*
 ** Module specific settings
 */
-@description('If true, peer to the hub network.  If false, we\'re assuming you will deal with this separately.')
-param peerToHubNetwork bool = false
+@description('The list of private DNS zones to create.')
+param privateDnsZones string[] = [
+  'privatelink.azconfig.io'
+  'privatelink.vaultcore.azure.net'
+  'privatelink${az.environment().suffixes.sqlServerHostname}'
+  'privatelink.azurewebsites.net'
+]
 
 // ========================================================================
 // VARIABLES
 // ========================================================================
 
-var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'spoke-network' })
+var moduleTags = union(deploymentSettings.tags, { 'azd-module': 'spoke', 'azd-function': 'networking' })
+
+// Rule used in NSGs to allow inbound HTTPS traffic.
+var allowHttpsInbound = {
+  name: 'Allow-Https-Inbound'
+  properties: {
+    access: 'Allow'
+    description: 'Allow HTTPS inbound traffic'
+    destinationAddressPrefix: '*'
+    destinationPortRange: '443'
+    direction: 'Inbound'
+    priority: 110
+    protocol: 'Tcp'
+    sourceAddressPrefix: '*'
+    sourcePortRange: '*'
+  }
+}
+
+// Rule used in NSGs to deny all inbound traffic.
+var denyAllInbound = {
+  name: 'Deny-All-Inbound'
+  properties: {
+    access: 'Deny'
+    description: 'Deny all inbound traffic'
+    destinationAddressPrefix: '*'
+    destinationPortRange: '*'
+    direction: 'Inbound'
+    priority: 1000
+    protocol: '*'
+    sourceAddressPrefix: '*'
+    sourcePortRange: '*'
+  }
+}
+
+// List of subnets allowed to access storage components
+var allowedStorageSubnets = [
+  networkSettings.addressPrefixes.apiOutbound
+  networkSettings.addressPrefixes.buildAgent
+  networkSettings.addressPrefixes.jumphost
+  networkSettings.addressPrefixes.devops
+]
 
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
 
-resource spokeResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' existing = {
-  name: resourceGroupName
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' existing = {
+  name: resourceNames.spokeResourceGroup
 }
 
 // ========================================================================
-// FEATURE MODULES
+// AZURE MODULES
 // ========================================================================
 
-module spokeNetwork '../../_features/networking/spoke-network.bicep' = if (deploymentSettings.isNetworkIsolated) {
-  name: 'spoke-resources'
-  scope: spokeResourceGroup
+module configurationNSG '../../_azure/security/network-security-group.bicep' = {
+  name: 'spoke-nsg-configuration'
+  scope: resourceGroup
   params: {
-    deploymentSettings: deploymentSettings
-    diagnosticSettings: diagnosticSettings
-    location: location
-    networkSettings: networkSettings
-    resourceNames: resourceNames
+    name: resourceNames.configurationNetworkSecurityGroup
+    location: deploymentSettings.location
     tags: moduleTags
 
     // Dependencies
     logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-    routeTableId: routeTableId
 
     // Settings
-    privateDnsZones: [
-      'privatelink.azconfig.io'
-      'privatelink.vaultcore.azure.net'
-      'privatelink${az.environment().suffixes.sqlServerHostname}'
-      'privatelink.azurewebsites.net'
+    diagnosticSettings: diagnosticSettings
+    securityRules: [
+      allowHttpsInbound
+      denyAllInbound
     ]
   }
 }
 
-module peerNetworks '../../_features/networking/peer-networks.bicep' = if (peerToHubNetwork && !empty(hubResourceGroupName) && !empty(hubVirtualNetworkName)) {
-  name: 'peer-networks'
-  scope: subscription()
+module storageNSG '../../_azure/security/network-security-group.bicep' = {
+  name: 'spoke-nsg-storage'
+  scope: resourceGroup
   params: {
-    hubResourceGroupName: hubResourceGroupName
-    hubVirtualNetworkName: hubVirtualNetworkName
-    spokeResourceGroupName: spokeResourceGroup.name
-    spokeVirtualNetworkName: deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.virtual_network_name : ''
+    name: resourceNames.storageNetworkSecurityGroup
+    location: deploymentSettings.location
+    tags: moduleTags
+
+    // Dependencies
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+
+    // Settings
+    diagnosticSettings: diagnosticSettings
+    securityRules: [
+      {
+        name: 'Allow-Https-Inbound'
+        properties: {
+          access: 'Allow'
+          description: 'Allow HTTPS inbound traffic'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '443'
+          direction: 'Inbound'
+          priority: 110
+          protocol: 'Tcp'
+          sourceAddressPrefixes: allowedStorageSubnets
+          sourcePortRange: '*'
+        }
+      }
+      {
+        name: 'Allow-Sql-Inbound'
+        properties: {
+          access: 'Allow'
+          description: 'Allow Azure SQL inbound traffic'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '1433'
+          direction: 'Inbound'
+          priority: 120
+          protocol: 'Tcp'
+          sourceAddressPrefixes: allowedStorageSubnets
+          sourcePortRange: '*'
+        }
+      }
+      denyAllInbound
+    ]
   }
 }
+
+module httpInboundNSG '../../_azure/security/network-security-group.bicep' = {
+  name: 'spoke-nsg-inbound-http'
+  scope: resourceGroup
+  params: {
+    name: resourceNames.inboundHttpNetworkSecurityGroup
+    location: deploymentSettings.location
+    tags: moduleTags
+
+    // Dependencies
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+
+    // Settings
+    diagnosticSettings: diagnosticSettings
+    securityRules: [
+      allowHttpsInbound
+      denyAllInbound
+    ]
+  }
+}
+
+module blockInboundNSG '../../_azure/security/network-security-group.bicep' = {
+  name: 'spoke-nsg-block-inbound'
+  scope: resourceGroup
+  params: {
+    name: resourceNames.blockInboundNetworkSecurityGroup
+    location: deploymentSettings.location
+    tags: moduleTags
+
+    // Dependencies
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+
+    // Settings
+    diagnosticSettings: diagnosticSettings
+    securityRules: [
+      denyAllInbound
+    ]
+  }
+}
+
+module virtualNetwork '../../_azure/networking/virtual-network.bicep' = {
+  name: 'spoke-virtual-network'
+  scope: resourceGroup
+  params: {
+    name: resourceNames.spokeVirtualNetwork
+    location: deploymentSettings.location
+    tags: moduleTags
+    
+    // Dependencies
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
+
+    // Settings
+    addressSpace: networkSettings.addressSpace
+    diagnosticSettings: diagnosticSettings
+    subnets: [
+      {
+        name: resourceNames.spokeConfigurationSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.configuration
+          networkSecurityGroup: {
+            id: configurationNSG.outputs.id
+          }
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+      {
+        name: resourceNames.spokeStorageSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.storage
+          networkSecurityGroup: { 
+            id: storageNSG.outputs.id 
+          }
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+      {
+        name: resourceNames.spokeApiInboundSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.apiInbound
+          networkSecurityGroup: { 
+            id: httpInboundNSG.outputs.id 
+          }
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+      {
+        name: resourceNames.spokeApiOutboundSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.apiOutbound
+          delegations: [
+            { 
+              name: 'delegation'
+              properties: { serviceName: 'Microsoft.Web/serverfarms' }
+            }
+          ]
+          networkSecurityGroup: {
+            id: blockInboundNSG.outputs.id
+          }
+          privateEndpointNetworkPolicies: 'Enabled'
+          routeTable: !empty(routeTableId) ?{ 
+            id: routeTableId 
+          } : null
+        }
+      }
+      {
+        name: resourceNames.spokeWebInboundSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.webInbound
+          networkSecurityGroup: {
+            id: httpInboundNSG.outputs.id
+          }
+          privateEndpointNetworkPolicies: 'Disabled'
+        }
+      }
+      {
+        name: resourceNames.spokeWebOutboundSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.webOutbound
+          delegations: [
+            { 
+              name: 'delegation'
+              properties: { serviceName: 'Microsoft.Web/serverfarms' }
+            }
+          ]
+          networkSecurityGroup: {
+            id: blockInboundNSG.outputs.id
+          }
+          privateEndpointNetworkPolicies: 'Enabled'
+          routeTable: !empty(routeTableId) ?{ 
+            id: routeTableId 
+          } : null
+        }
+      }
+      {
+        name: resourceNames.spokeBuildAgentSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.buildAgent
+          networkSecurityGroup: {
+            id: blockInboundNSG.outputs.id
+          }
+          privateEndpointNetworkPolicies: 'Disabled'
+          routeTable: !empty(routeTableId) ?{ 
+            id: routeTableId 
+          } : null
+        }
+      }
+      {
+        name: resourceNames.spokeJumphostSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.jumphost
+          networkSecurityGroup: {
+            id: blockInboundNSG.outputs.id
+          }
+          privateEndpointNetworkPolicies: 'Disabled'
+          routeTable: !empty(routeTableId) ?{ 
+            id: routeTableId 
+          } : null
+        }
+      }
+      {
+        name: resourceNames.spokeDevopsSubnet
+        properties: {
+          addressPrefix: networkSettings.addressPrefixes.devops
+          networkSecurityGroup: {
+            id: blockInboundNSG.outputs.id
+          }
+          privateEndpointNetworkPolicies: 'Disabled'
+          routeTable: !empty(routeTableId) ?{ 
+            id: routeTableId 
+          } : null
+        }
+      }
+    ]
+  }
+}
+
+module dnsZones '../../_azure/networking/private-dns-zone.bicep' = [ for dnsZoneName in privateDnsZones: {
+  name: 'dns-zone-${dnsZoneName}'
+  scope: resourceGroup
+  params: {
+    name: dnsZoneName
+    tags: moduleTags
+    virtualNetworkId: virtualNetwork.outputs.id
+  }
+}]
 
 // ========================================================================
 // OUTPUTS
 // ========================================================================
 
-output resource_group_name string = deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.resource_group_name : ''
-output virtual_network_name string = deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.virtual_network_name : ''
+output configuration_subnet_id string = virtualNetwork.outputs.subnets[0].id
+output storage_subnet_id string = virtualNetwork.outputs.subnets[1].id
