@@ -1,6 +1,7 @@
 ﻿namespace FieldEngineer.Api.Models
 {
-    public class SupportTicket
+    public class SupportTicket : EntityTableData
     {
+        // TODO: Fill this in.
     }
 }

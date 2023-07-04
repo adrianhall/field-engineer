@@ -1,6 +1,7 @@
 ﻿namespace FieldEngineer.Api.Models
 {
-    public class Customer
+    public class Customer : EntityTableData
     {
+        // TODO: Fill this in.
     }
 }
