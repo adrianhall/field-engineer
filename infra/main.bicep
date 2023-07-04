@@ -310,25 +310,6 @@ module workloadResources './_modules/workload/resources.bicep' = {
 }
 
 /*
-** Create the Azure Container Instance for the devops service.  This is used for executing
-** scripts inside of the virtual network.
-*/
-// module devopsResources './_modules/devops/resources.bicep' = {
-//   name: '${prefix}-devops-resources'
-//   params: {
-//     deploymentSettings: deploymentSettings
-//     diagnosticSettings: diagnosticSettings
-//     resourceNames: naming.outputs.resourceNames
-
-//     // Dependencies
-//     logAnalyticsWorkspaceId: azureMonitor.outputs.workspace_id
-//     managedIdentityName: workloadResources.outputs.managed_identity_name
-//     devopsSubnetId: deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.devops_subnet_id : ''
-//     storageSubnetId: deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.storage_subnet_id : ''
-//   }
-// }
-
-/*
 ** Add a budget and other cost management resources.
 */
 module costManagement './_modules/common/cost-management.bicep' = {
