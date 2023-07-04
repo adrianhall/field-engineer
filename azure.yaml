@@ -8,7 +8,3 @@ services:
     project: src/dotnet/FieldEngineer.Api
     language: csharp
     host: appservice
-  web:
-    project: src/dotnet/FieldEngineer.Web
-    language: csharp
-    host: appservice
