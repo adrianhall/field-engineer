@@ -41,6 +41,7 @@
     */
     // "applicationInsights": "",
     // "applicationInsightsDashboard": "",
+    // "budget": "",
     // "logAnalyticsWorkspace": "",
 
     /*
@@ -73,6 +74,11 @@
     */
     // "buildAgent": "",
     // "buildAgentPublicIpAddress": "",
+    // "devopsContainerGroup": "",
+    // "devopsContainer": "",
+    // "devopsStoragePrivateEndpoint": "",
+    // "devopsStorageAccount": "",
+    // "devopsFileShare": "",
     // "jumphost": "",
     // "jumphostPublicIpAddress": "",
 

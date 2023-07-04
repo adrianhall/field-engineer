@@ -64,7 +64,7 @@ param enablePublicNetworkAccess bool = true
 param ipSecurityRestrictions object[] = []
 
 @description('The programming stack to use')
-param linuxFxVersion string = 'DOTNETCORE|6.0'
+param linuxFxVersion string = 'DOTNET|6.0'
 
 @description('The service prefix - used to tag the resource for azd deployment')
 param servicePrefix string
@@ -102,7 +102,6 @@ var defaultAppServiceProperties = {
     alwaysOn: true
     detailedErrorLoggingEnabled: diagnosticSettings.enableDiagnosticLogs
     httpLoggingEnabled: diagnosticSettings.enableDiagnosticLogs
-    linuxFxVersion: linuxFxVersion
     requestTracingEnabled: diagnosticSettings.enableDiagnosticLogs
     ftpsState: 'Disabled'
     ipSecurityRestrictions: ipSecurityRestrictions

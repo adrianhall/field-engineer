@@ -146,7 +146,7 @@ param restrictToAzureFrontDoor string = ''
 param servicePrefix string
 
 @description('The programming stack to use')
-param stack string = 'DOTNETCORE|6.0'
+param stack string = 'DOTNET|6.0'
 
 // =====================================================================================================================
 //     VARIABLES

@@ -131,21 +131,23 @@ resource appConfiguration 'Microsoft.AppConfiguration/configurationStores@2023-0
   }
 }
 
-module grantDataOwnerAccess '../../_azure/identity/role-assignment.bicep' = [ for id in ownerIdentities: if (!empty(id.principalId)) {
-  name: 'grant-dataowner-${uniqueString(id.principalId)}'
-  params: {
-    principalId: id.principalId
+resource grantDataOwnerAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in ownerIdentities: if (!empty(id.principalId)) {
+  name: guid(dataOwnerRoleId, id.principalId, appConfiguration.id, resourceGroup().name)
+  scope: appConfiguration
+  properties: {
     principalType: id.principalType
-    roleId: dataOwnerRoleId
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', dataOwnerRoleId)
+    principalId: id.principalId
   }
 }]
 
-module grantDataReaderAccess '../../_azure/identity/role-assignment.bicep' = [ for id in readerIdentities: if (!empty(id.principalId)) {
-  name: 'grant-datareader-${uniqueString(id.principalId)}'
-  params: {
-    principalId: id.principalId
+resource grantDataReaderAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in readerIdentities: if (!empty(id.principalId)) {
+  name: guid(dataReaderRoleId, id.principalId, appConfiguration.id, resourceGroup().name)
+  scope: appConfiguration
+  properties: {
     principalType: id.principalType
-    roleId: dataReaderRoleId
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', dataReaderRoleId)
+    principalId: id.principalId
   }
 }]
 

@@ -89,6 +89,8 @@ param useCommonAppServicePlan string = 'auto'
 // VARIABLES
 // ========================================================================
 
+var prefix = '${environmentName}-${environmentType}'
+
 // Boolean to indicate the various values for the deployment settings
 var isProduction = environmentType == 'prod'
 var isNetworkIsolated = networkIsolation == 'true' || (networkIsolation == 'auto' && isProduction)
@@ -157,7 +159,7 @@ var networkSettings = {
 ** naming of all resources.
 */
 module naming './_modules/common/naming.bicep' = {
-  name: '${environmentName}-${environmentType}-naming'
+  name: '${prefix}-naming'
   params: {
     deploymentSettings: deploymentSettings
     overrides: loadJsonContent('./naming.overrides.jsonc')
@@ -176,7 +178,7 @@ module naming './_modules/common/naming.bicep' = {
 ** depends on the settings.
 */
 module resourceGroups './_modules/common/resource-groups.bicep' = {
-  name: '${environmentName}-${environmentType}-resource-groups'
+  name: '${prefix}-resource-groups'
   params: {
     deploymentSettings: deploymentSettings
     resourceNames: naming.outputs.resourceNames
@@ -191,7 +193,7 @@ module resourceGroups './_modules/common/resource-groups.bicep' = {
 **  A dashboard for the service
 */
 module azureMonitor './_modules/common/azure-monitor.bicep' = {
-  name: '${environmentName}-${environmentType}-monitoring'
+  name: '${prefix}-monitoring'
   params: {
     deploymentSettings: deploymentSettings
     resourceGroupName: deploymentSettings.deployHubNetwork ? naming.outputs.resourceNames.hubResourceGroup : naming.outputs.resourceNames.resourceGroup
@@ -213,7 +215,7 @@ module azureMonitor './_modules/common/azure-monitor.bicep' = {
 **  A route table that is used within the spoke to reach the firewall
 */
 module hubNetwork './_modules/networking/hub.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: '${environmentName}-${environmentType}-hub-network'
+  name: '${prefix}-hub-network'
   params: {
     deploymentSettings: deploymentSettings
     diagnosticSettings: diagnosticSettings
@@ -248,7 +250,7 @@ module hubNetwork './_modules/networking/hub.bicep' = if (deploymentSettings.dep
 ** set of private DNS zones to support the private endpoints.
 */
 module spokeNetwork './_modules/networking/spoke.bicep' = if (deploymentSettings.isNetworkIsolated) {
-  name: '${environmentName}-${environmentType}-spoke-network'
+  name: '${prefix}-spoke-network'
   params: {
     deploymentSettings: deploymentSettings
     diagnosticSettings: diagnosticSettings
@@ -271,7 +273,7 @@ module spokeNetwork './_modules/networking/spoke.bicep' = if (deploymentSettings
 ** spoke network to the peer network.
 */
 module peerNetworks './_modules/networking/peer-networks.bicep' = if (deploymentSettings.deployHubNetwork) {
-  name: '${environmentName}-${environmentType}-peer-networks'
+  name: '${prefix}-peer-networks'
   params: {
     hubResourceGroupName: naming.outputs.resourceNames.hubResourceGroup
     hubVirtualNetworkName: naming.outputs.resourceNames.hubVirtualNetwork
@@ -290,7 +292,7 @@ module peerNetworks './_modules/networking/peer-networks.bicep' = if (deployment
 ** spoke network, if configured.
 */
 module workloadResources './_modules/workload/resources.bicep' = {
-  name: '${environmentName}-${environmentType}-workload-resources'
+  name: '${prefix}-workload-resources'
   params: {
     deploymentSettings: deploymentSettings
     diagnosticSettings: diagnosticSettings
@@ -305,6 +307,40 @@ module workloadResources './_modules/workload/resources.bicep' = {
     sqlAdministratorPassword: administratorPassword
     sqlAdministratorUsername: naming.outputs.resourceNames.administratorUsername
   }
+}
+
+/*
+** Create the Azure Container Instance for the devops service.  This is used for executing
+** scripts inside of the virtual network.
+*/
+// module devopsResources './_modules/devops/resources.bicep' = {
+//   name: '${prefix}-devops-resources'
+//   params: {
+//     deploymentSettings: deploymentSettings
+//     diagnosticSettings: diagnosticSettings
+//     resourceNames: naming.outputs.resourceNames
+
+//     // Dependencies
+//     logAnalyticsWorkspaceId: azureMonitor.outputs.workspace_id
+//     managedIdentityName: workloadResources.outputs.managed_identity_name
+//     devopsSubnetId: deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.devops_subnet_id : ''
+//     storageSubnetId: deploymentSettings.isNetworkIsolated ? spokeNetwork.outputs.storage_subnet_id : ''
+//   }
+// }
+
+/*
+** Add a budget and other cost management resources.
+*/
+module costManagement './_modules/common/cost-management.bicep' = {
+  name: '${prefix}-cost-management'
+  params: {
+    deploymentSettings: deploymentSettings
+    diagnosticSettings: diagnosticSettings
+    resourceNames: naming.outputs.resourceNames
+  }
+  dependsOn: [
+    workloadResources
+  ]
 }
 
 // ========================================================================

@@ -119,6 +119,7 @@ param privateDnsZones string[] = [
   'privatelink.vaultcore.azure.net'
   'privatelink${az.environment().suffixes.sqlServerHostname}'
   'privatelink.azurewebsites.net'
+  'privatelink.file.${az.environment().suffixes.storage}'
 ]
 
 // ========================================================================
@@ -238,6 +239,22 @@ module storageNSG '../../_azure/security/network-security-group.bicep' = {
           priority: 120
           protocol: 'Tcp'
           sourceAddressPrefixes: allowedStorageSubnets
+          sourcePortRange: '*'
+        }
+      }
+      {
+        name: 'Allow-All-Devops'
+        properties: {
+          access: 'Allow'
+          description: 'Allow all traffic from devops subnet'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '*'
+          direction: 'Inbound'
+          priority: 130
+          protocol: 'Tcp'
+          sourceAddressPrefixes: [
+            networkSettings.addressPrefixes.devops
+          ]
           sourcePortRange: '*'
         }
       }
@@ -408,6 +425,14 @@ module virtualNetwork '../../_azure/networking/virtual-network.bicep' = {
         name: resourceNames.spokeDevopsSubnet
         properties: {
           addressPrefix: networkSettings.addressPrefixes.devops
+          delegations: [
+            {
+              name: 'delegation'
+              properties: {
+                serviceName: 'Microsoft.ContainerInstance/containerGroups'
+              }
+            }
+          ]
           networkSecurityGroup: {
             id: blockInboundNSG.outputs.id
           }
@@ -437,3 +462,10 @@ module dnsZones '../../_azure/networking/private-dns-zone.bicep' = [ for dnsZone
 
 output configuration_subnet_id string = virtualNetwork.outputs.subnets[0].id
 output storage_subnet_id string = virtualNetwork.outputs.subnets[1].id
+output apiInbound_subnet_id string = virtualNetwork.outputs.subnets[2].id
+output apiOutbound_subnet_id string = virtualNetwork.outputs.subnets[3].id
+output webInbound_subnet_id string = virtualNetwork.outputs.subnets[4].id
+output webOutbound_subnet_id string = virtualNetwork.outputs.subnets[5].id
+output buildAgent_subnet_id string = virtualNetwork.outputs.subnets[6].id
+output jumphost_subnet_id string = virtualNetwork.outputs.subnets[7].id
+output devops_subnet_id string = virtualNetwork.outputs.subnets[8].id

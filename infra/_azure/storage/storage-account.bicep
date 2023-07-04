@@ -82,7 +82,11 @@ param ownerIdentities ApplicationIdentity[] = []
 param privateEndpointSettings PrivateEndpointSettings?
 
 @description('The list of application identities to be granted reader access to the workload resources.')
-param readerIdentities ApplicationIdentity[] = []
+param userIdentities ApplicationIdentity[] = []
+
+@allowed([ 'Premium_LRS', 'Premium_ZRS', 'Standard_GRS', 'Standard_GZRS', 'Standard_LRS', 'Standard_RAGRS', 'Standard_RAGZRS', 'Standard_ZRS'])
+@description('The pricing tier for the resource; note that Standard is required for network isolation.')
+param sku string = 'Standard_LRS'
 
 // =====================================================================================================================
 //     VARIABLES
@@ -90,11 +94,14 @@ param readerIdentities ApplicationIdentity[] = []
 
 // For a list of all categories that this resource supports, see: https://learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories
 var auditLogCategories = diagnosticSettings.enableAuditLogs ? [
-  'AuditEvent'
+
 ] : []
 
 var diagnosticLogCategories = diagnosticSettings.enableDiagnosticLogs ? [
-  'AzurePolicyEvaluationDetails'
+  'StorageBlobLogs'
+  'StorageFileLogs'
+  'StorageQueueLogs'
+  'StorageTableLogs'
 ] : []
 
 var auditLogSettings = map(auditLogCategories, category => { 
@@ -105,53 +112,52 @@ var diagnosticLogSettings = map(diagnosticLogCategories, category => {
 })
 var logSettings = concat(auditLogSettings, diagnosticLogSettings)
 
-@description('Built in \'Key Vault Administrator\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
-var vaultAdministratorRoleId = '00482a5a-887f-4fb3-b363-3b7fe8e74483'
+@description('Built in \'Storage Account Contributer\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
+var storageOwnerRoleId = '17d1049b-9a84-46fb-8f53-869881c3d3ab'
 
-@description('Built in \'Key Vault Secrets User\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
-var vaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
+@description('Built in \'Reader and Data Access\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
+var storageUserRoleId = 'c12c1c16-33a1-487b-954d-41c89c60f349'
 
 // =====================================================================================================================
 //     AZURE RESOURCES
 // =====================================================================================================================
 
-resource keyVault 'Microsoft.KeyVault/vaults@2022-07-01' = {
+resource storageAccount 'Microsoft.Storage/storageAccounts@2022-09-01' = {
   name: name
   location: location
   tags: tags
+  kind: 'StorageV2'
+  sku: {
+    name: sku
+  }
   properties: {
-    enableRbacAuthorization: true
-    publicNetworkAccess: enablePublicNetworkAccess ? 'enabled' : 'disabled'
-    sku: {
-      family: 'A'
-      name: 'standard'
-    }
-    tenantId: subscription().tenantId
+    accessTier: 'Hot'
+    publicNetworkAccess: enablePublicNetworkAccess ? 'Enabled' : 'Disabled'
   }
 }
 
-resource grantVaultAdminAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in ownerIdentities: if (!empty(id.principalId)) {
-  name: guid(vaultAdministratorRoleId, id.principalId, keyVault.id, resourceGroup().name)
-  scope: keyVault
+resource grantOwnerAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in ownerIdentities: if (!empty(id.principalId)) {
+  name: guid(storageOwnerRoleId, id.principalId, storageAccount.id, resourceGroup().name)
+  scope: storageAccount
   properties: {
     principalType: id.principalType
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', vaultAdministratorRoleId)
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageOwnerRoleId)
     principalId: id.principalId
   }
 }]
 
-resource grantSecretsUserAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in readerIdentities: if (!empty(id.principalId)) {
-  name: guid(vaultSecretsUserRoleId, id.principalId, keyVault.id, resourceGroup().name)
-  scope: keyVault
+resource grantUserAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in userIdentities: if (!empty(id.principalId)) {
+  name: guid(storageUserRoleId, id.principalId, storageAccount.id, resourceGroup().name)
+  scope: storageAccount
   properties: {
     principalType: id.principalType
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', vaultSecretsUserRoleId)
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', storageUserRoleId)
     principalId: id.principalId
   }
 }]
 
 module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (privateEndpointSettings != null) {
-  name: 'key-vault-private-endpoint'
+  name: 'app-configuration-private-endpoint'
   scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
   params: {
     name: privateEndpointSettings!.name
@@ -159,19 +165,19 @@ module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (pr
     tags: tags
 
     // Dependencies
-    linkServiceName: keyVault.name
-    linkServiceId: keyVault.id
+    linkServiceName: storageAccount.name
+    linkServiceId: storageAccount.id
     subnetResourceId: privateEndpointSettings!.subnetId
 
     // Settings
-    dnsZoneName: 'privatelink.vaultcore.azure.net'
-    groupIds: [ 'vault' ]
+    dnsZoneName: 'privatelink.azconfig.io'
+    groupIds: [ 'configurationStores' ]
   }
 }
 
 resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   name: '${name}-diagnostics'
-  scope: keyVault
+  scope: storageAccount
   properties: {
     workspaceId: logAnalyticsWorkspaceId
     logs: logSettings
@@ -189,6 +195,5 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
 //     OUTPUTS
 // =====================================================================================================================
 
-output id string = keyVault.id
-output name string = keyVault.name
-output uri string = keyVault.properties.vaultUri
+output id string = storageAccount.id
+output name string = storageAccount.name

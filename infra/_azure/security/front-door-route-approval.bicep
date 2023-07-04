@@ -26,12 +26,12 @@ resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-
   name: managedIdentityName
 }
 
-module grantContributorRole '../identity/role-assignment.bicep' = {
-  name: 'grant-contributor-role'
-  params: {
-    principalId: managedIdentity.properties.principalId
+resource grantContributorRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(contributerRoleId, managedIdentityName, resourceGroup().name)
+  properties: {
     principalType: 'ServicePrincipal'
-    roleId: contributerRoleId
+    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', contributerRoleId)
+    principalId: managedIdentity.properties.principalId
   }
 }
 

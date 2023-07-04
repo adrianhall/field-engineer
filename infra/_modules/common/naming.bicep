@@ -118,6 +118,7 @@ var defaultResourceNames = {
     */
     applicationInsights: 'appi-${resourceToken}'
     applicationInsightsDashboard: 'dash-${resourceToken}'
+    budget: 'budget-${deploymentSettings.name}-${deploymentSettings.stage}'
     logAnalyticsWorkspace: 'log-${resourceToken}'
 
     /*
@@ -151,6 +152,11 @@ var defaultResourceNames = {
     */
     buildAgent: 'vm-build-${resourceToken}'
     buildAgentPublicIpAddress: 'pip-build-${resourceToken}'
+    devopsContainerGroup: 'ci-devops-${resourceToken}'
+    devopsContainer: 'devops-container-${resourceToken}'
+    devopsFileShare: 'share-devops-${resourceToken}'
+    devopsStoragePrivateEndpoint: 'pe-stdevops-${resourceToken}'
+    devopsStorageAccount: 'stdevops${resourceToken}'
     jumphost: 'vm-jump-${resourceToken}'
     jumphostPublicIpAddress: 'pip-jump-${resourceToken}'
 
@@ -204,6 +210,7 @@ output resourceNames object = {
     */
     applicationInsights: contains(overrides, 'applicationInsights') && !empty(overrides.applicationInsights) ? overrides.applicationInsights : defaultResourceNames.applicationInsights
     applicationInsightsDashboard: contains(overrides, 'applicationInsightsDashboard') && !empty(overrides.applicationInsightsDashboard) ? overrides.applicationInsightsDashboard : defaultResourceNames.applicationInsightsDashboard
+    budget: contains(overrides, 'budget') && !empty(overrides.budget) ? overrides.budget : defaultResourceNames.budget
     logAnalyticsWorkspace: contains(overrides, 'logAnalyticsWorkspace') && !empty(overrides.logAnalyticsWorkspace) ? overrides.logAnalyticsWorkspace : defaultResourceNames.logAnalyticsWorkspace
 
     /*
@@ -237,6 +244,11 @@ output resourceNames object = {
     */
     buildAgent: contains(overrides, 'buildAgent') && !empty(overrides.buildAgent) ? overrides.buildAgent : defaultResourceNames.buildAgent
     buildAgentPublicIpAddress: contains(overrides, 'buildAgentPublicIpAddress') && !empty(overrides.buildAgentPublicIpAddress) ? overrides.buildAgentPublicIpAddress : defaultResourceNames.buildAgentPublicIpAddress
+    devopsContainerGroup: contains(overrides, 'devopsContainerGroup') && !empty(overrides.devopsContainerGroup) ? overrides.devopsContainerGroup : defaultResourceNames.devopsContainerGroup
+    devopsContainer: contains(overrides, 'devopsContainer') && !empty(overrides.devopsContainer) ? overrides.devopsContainer : defaultResourceNames.devopsContainer
+    devopsFileShare: contains(overrides, 'devopsFileShare') && !empty(overrides.devopsFileShare) ? overrides.devopsFileShare : defaultResourceNames.devopsFileShare
+    devopsStoragePrivateEndpoint: contains(overrides, 'devopsStoragePrivateEndpoint') && !empty(overrides.devopsStoragePrivateEndpoint) ? overrides.devopsStoragePrivateEndpoint : defaultResourceNames.devopsStoragePrivateEndpoint
+    devopsStorageAccount: contains(overrides, 'devopsStorageAccount') && !empty(overrides.devopsStorageAccount) ? overrides.devopsStorageAccount : defaultResourceNames.devopsStorageAccount
     jumphost: contains(overrides, 'jumphost') && !empty(overrides.jumphost) ? overrides.jumphost : defaultResourceNames.jumphost
     jumphostPublicIpAddress: contains(overrides, 'jumphostPublicIpAddress') && !empty(overrides.jumphostPublicIpAddress) ? overrides.jumphostPublicIpAddress : defaultResourceNames.jumphostPublicIpAddress
 

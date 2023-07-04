@@ -467,6 +467,7 @@ module gatewayRoutes './gateway-routes.bicep' = {
 // OUTPUTS
 // ========================================================================
 
+output managed_identity_name string = ownerManagedIdentity.outputs.name
 output service_api_endpoints string[] = [ '${frontDoor.outputs.uri}/api', apiService.outputs.app_service_uri ]
 output service_web_endpoints string[] = [ frontDoor.outputs.uri, webService.outputs.app_service_uri ]
 
