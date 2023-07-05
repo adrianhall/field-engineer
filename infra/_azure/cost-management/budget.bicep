@@ -5,7 +5,7 @@
 @description('The name of the resource')
 param name string
 
-@description('The total amount of cost or usage to track with the budget')
+@description('The total amount of cost or usage to track with the budget; this is in the currency of the billing account.')
 param amount int = 1000
 
 @description('The time covered by a budget. Tracking of the amount will be reset based on the time grain.')

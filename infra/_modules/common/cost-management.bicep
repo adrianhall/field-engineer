@@ -93,9 +93,50 @@ param resourceNames object
 // We use union() to get a unique list of the resource groups to monitor.
 var resourceGroups = union(
   [ resourceNames.resourceGroup ],
-  deploymentSettings.deployHubNetwork ? [ resourceNames.hubResourceGroup ] : [],
   deploymentSettings.isNetworkIsolated ? [ resourceNames.spokeResourceGroup ] : []
 )
+
+/*
+** To construct the budget, we use the approximate values from the pricing
+** calculator for each resource in the application.  There are different SKUs
+** in play for development vs. production.  These prices are for USD in south
+** central US region.
+**
+** This is NOT the entire cost.  It does not include the cost of the hub network,
+** for example.
+*/
+var budgetValues = {
+  dev: {
+    frontdoor: 40
+    appserviceplan: 55
+    sqldatabase: 5
+    keyvault: 0
+    appconfig: 0
+    virtualnetwork: 5
+    privatelink: 40
+  }
+  prod: {
+    frontdoor: 350
+    appserviceplan: 255
+    sqldatabase: 460
+    keyvault: 0
+    appconfig: 36
+    virtualnetwork: 5
+    privatelink: 40
+  }
+}
+
+var budgetRecords = deploymentSettings.isProduction ? budgetValues.prod : budgetValues.dev
+
+var budgetAmount = reduce([
+  budgetRecords.frontdoor
+  deploymentSettings.useCommonAppServicePlan ? budgetRecords.appserviceplan * 2 : budgetRecords.appserviceplan
+  budgetRecords.sqldatabase
+  budgetRecords.keyvault
+  budgetRecords.appconfig
+  deploymentSettings.isNetworkIsolated ? budgetRecords.privatelink : 0
+  deploymentSettings.isNetworkIsolated ? budgetRecords.virtualnetwork : 0
+], 0, (cur, next) => cur + next)
 
 // ========================================================================
 // AZURE MODULES
@@ -110,7 +151,7 @@ module budget '../../_azure/cost-management/budget.bicep' = {
   scope: resourceGroup
   params: {
     name: resourceNames.budget
-    amount: 1000
+    amount: budgetAmount
     contactEmails: [ deploymentSettings.tags['azd-owner-email'] ]
     resourceGroups: resourceGroups
   }

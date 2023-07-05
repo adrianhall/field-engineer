@@ -471,3 +471,10 @@ output managed_identity_name string = ownerManagedIdentity.outputs.name
 output service_api_endpoints string[] = [ '${frontDoor.outputs.uri}/api', apiService.outputs.app_service_uri ]
 output service_web_endpoints string[] = [ frontDoor.outputs.uri, webService.outputs.app_service_uri ]
 
+// Outputs for the post-provision layer
+output api_endpoint string = apiService.outputs.app_service_uri
+output managed_identities object[] = [
+  { name: apiManagedIdentity.outputs.name,   principalId: apiManagedIdentity.outputs.principal_id }
+  { name: webManagedIdentity.outputs.name,   principalId: webManagedIdentity.outputs.principal_id }
+]
+output sql_connection_string string = sqlDatabase.outputs.connection_string

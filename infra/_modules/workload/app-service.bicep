@@ -244,7 +244,7 @@ module appService '../../_azure/hosting/app-service.bicep' = {
 }
 
 module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (networkIsolationSettings != null) {
-  name: '${servicePrefix}-appsvc-private-endpoint'
+  name: '${appServiceName}-private-endpoint'
   scope: resourceGroup(networkIsolationSettings!.resourceGroupName)
   params: {
     name: privateEndpointName

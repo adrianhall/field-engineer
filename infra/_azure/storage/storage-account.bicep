@@ -92,26 +92,6 @@ param sku string = 'Standard_LRS'
 //     VARIABLES
 // =====================================================================================================================
 
-// For a list of all categories that this resource supports, see: https://learn.microsoft.com/azure/azure-monitor/essentials/resource-logs-categories
-var auditLogCategories = diagnosticSettings.enableAuditLogs ? [
-
-] : []
-
-var diagnosticLogCategories = diagnosticSettings.enableDiagnosticLogs ? [
-  'StorageBlobLogs'
-  'StorageFileLogs'
-  'StorageQueueLogs'
-  'StorageTableLogs'
-] : []
-
-var auditLogSettings = map(auditLogCategories, category => { 
-  category: category, enabled: true, retentionPolicy: { days: diagnosticSettings.auditLogRetentionInDays, enabled: true }
-})
-var diagnosticLogSettings = map(diagnosticLogCategories, category => { 
-  category: category, enabled: true, retentionPolicy: { days: diagnosticSettings.diagnosticLogRetentionInDays, enabled: true } 
-})
-var logSettings = concat(auditLogSettings, diagnosticLogSettings)
-
 @description('Built in \'Storage Account Contributer\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
 var storageOwnerRoleId = '17d1049b-9a84-46fb-8f53-869881c3d3ab'
 
@@ -180,7 +160,7 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
   scope: storageAccount
   properties: {
     workspaceId: logAnalyticsWorkspaceId
-    logs: logSettings
+    logs: []
     metrics: [
       {
         category: 'AllMetrics'
@@ -197,3 +177,7 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
 
 output id string = storageAccount.id
 output name string = storageAccount.name
+
+// Should not have to do this, but the devops module needs access - it doesn't go beyond that.
+#disable-next-line outputs-should-not-contain-secrets
+output primary_access_key string = storageAccount.listKeys().keys[0].value

@@ -151,7 +151,7 @@ resource grantSecretsUserAccess 'Microsoft.Authorization/roleAssignments@2022-04
 }]
 
 module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (privateEndpointSettings != null) {
-  name: '${name}-privateEndpoint'
+  name: '${name}-private-endpoint'
   scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
   params: {
     name: privateEndpointSettings!.name

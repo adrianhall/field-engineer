@@ -133,7 +133,7 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2021-11-01' = {
 }
 
 module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (privateEndpointSettings != null) {
-  name: 'private-endpoint-for-sqldb'
+  name: '${name}-private-endpoint'
   scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
   params: {
     name: privateEndpointSettings!.name
