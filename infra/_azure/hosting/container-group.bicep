@@ -39,24 +39,28 @@ param subnetResourceId string = ''
 /*
 ** Service settings
 */
-@description('A list of environment variables to apply to the container instance.')
-param environmentVariables ContainerEnvironmentVariable[] = []
-
-@description('Container image to deploy. Should be of the form repoName/imagename:tag for images stored in public Docker Hub, or a fully qualified URI for other registries. Images from private registries require additional registry credentials.')
-param image string = 'mcr.microsoft.com/azuredocs/aci-helloworld'
+@description('A list of containers to apply to the container instance.')
+param containers object[]
 
 @description('The name of the Azure Container group resource to create.')
 param containerGroupName string = '${name}-container-group'
 
-@description('The number of CPU cores to allocate to the container.')
-param cpuCores int = 1
-
-@description('The amount of memory to allocate to the container in gigabytes.')
-param memoryInGb int = 2
-
 @description('The behavior of Azure runtime if container has stopped.')
 @allowed([ 'Always', 'Never', 'OnFailure' ])
 param restartPolicy string = 'OnFailure'
+
+// ========================================================================
+//     VARIABLES
+// ========================================================================
+
+var actualContainers = map(containers, c => union(c, { 
+  resources: { 
+    request: { 
+      cpuCores: 2
+      memoryInGB: 4 
+    }
+  }
+}))
 
 // ========================================================================
 //     AZURE RESOURCES
@@ -77,38 +81,24 @@ resource containerGroup 'Microsoft.ContainerInstance/containerGroups@2023-05-01'
     }
   }
   properties: {
-    containers: [
-      {
-        name: name
-        properties: {
-          environmentVariables: environmentVariables
-          image: image
-          ports: [
-            { port: 22, protocol: 'TCP' } // SSH
-          ]
-          resources: {
-            requests: {
-              cpu: cpuCores
-              memoryInGB: memoryInGb
-            }
-          }
-        }
-      }
-    ]
-    // TODO: Public IP Address for when not network isolated
+    osType: 'Linux'
+    restartPolicy: restartPolicy
+    sku: 'Standard'
+
+    // Link into devops subnet, if using a virtual network
+    subnetIds: !empty(subnetResourceId) ? [
+      { id: subnetResourceId }
+    ] : []
+
+    // IP address is either public or private.  Use private
+    // when using a virtual network.
     ipAddress: {
       ports: [
         { port: 22, protocol: 'TCP' } // SSH
       ]
-      type: 'Private'
+      type: !empty(subnetResourceId) ? 'Private' : 'Public'
     }
-    osType: 'Linux'
-    restartPolicy: restartPolicy
-    sku: 'Standard'
-    // TODO: Public IP Address for when not network isolated
-    subnetIds: [
-      { id: subnetResourceId }
-    ]
+    containers: actualContainers
   }
 }
 

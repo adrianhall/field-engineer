@@ -163,7 +163,6 @@ var denyAllInbound = {
 // List of subnets allowed to access storage components
 var allowedStorageSubnets = [
   networkSettings.addressPrefixes.apiOutbound
-  networkSettings.addressPrefixes.buildAgent
   networkSettings.addressPrefixes.jumphost
   networkSettings.addressPrefixes.devops
 ]
@@ -246,7 +245,7 @@ module storageNSG '../../_azure/security/network-security-group.bicep' = {
         name: 'Allow-All-Devops'
         properties: {
           access: 'Allow'
-          description: 'Allow all traffic from devops subnet'
+          description: 'Allow all traffic from Devops subnet'
           destinationAddressPrefix: '*'
           destinationPortRange: '*'
           direction: 'Inbound'
@@ -396,19 +395,6 @@ module virtualNetwork '../../_azure/networking/virtual-network.bicep' = {
         }
       }
       {
-        name: resourceNames.spokeBuildAgentSubnet
-        properties: {
-          addressPrefix: networkSettings.addressPrefixes.buildAgent
-          networkSecurityGroup: {
-            id: blockInboundNSG.outputs.id
-          }
-          privateEndpointNetworkPolicies: 'Disabled'
-          routeTable: !empty(routeTableId) ?{ 
-            id: routeTableId 
-          } : null
-        }
-      }
-      {
         name: resourceNames.spokeJumphostSubnet
         properties: {
           addressPrefix: networkSettings.addressPrefixes.jumphost
@@ -466,6 +452,5 @@ output apiInbound_subnet_id string = virtualNetwork.outputs.subnets[2].id
 output apiOutbound_subnet_id string = virtualNetwork.outputs.subnets[3].id
 output webInbound_subnet_id string = virtualNetwork.outputs.subnets[4].id
 output webOutbound_subnet_id string = virtualNetwork.outputs.subnets[5].id
-output buildAgent_subnet_id string = virtualNetwork.outputs.subnets[6].id
-output jumphost_subnet_id string = virtualNetwork.outputs.subnets[7].id
-output devops_subnet_id string = virtualNetwork.outputs.subnets[8].id
+output jumphost_subnet_id string = virtualNetwork.outputs.subnets[6].id
+output devops_subnet_id string = virtualNetwork.outputs.subnets[7].id

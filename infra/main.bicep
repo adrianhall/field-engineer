@@ -142,9 +142,8 @@ var networkSettings = {
       webOutbound:   '10.2.1.128/25'
       configuration: '10.2.2.0/26'
       storage:       '10.2.2.64/26'
-      buildAgent:    '10.2.254.0/26'
-      devops:        '10.2.254.64/26'
-      jumphost:      '10.2.254.128/26'
+      devops:        '10.2.254.0/26'
+      jumphost:      '10.2.254.64/26'
     }
   }
 }
@@ -231,7 +230,6 @@ module hubNetwork './_modules/networking/hub.bicep' = if (deploymentSettings.dep
       networkSettings.spoke.addressSpace
     ]
     unrestrictedEgressAddresses: [
-      networkSettings.spoke.addressPrefixes.buildAgent
       networkSettings.spoke.addressPrefixes.devops
       networkSettings.spoke.addressPrefixes.jumphost
     ]

@@ -170,8 +170,8 @@ module privateEndpoint '../../_azure/networking/private-endpoint.bicep' = if (pr
     subnetResourceId: privateEndpointSettings!.subnetId
 
     // Settings
-    dnsZoneName: 'privatelink.azconfig.io'
-    groupIds: [ 'configurationStores' ]
+    dnsZoneName: 'privatelink.file.${az.environment().suffixes.storage}'
+    groupIds: [ 'file' ]
   }
 }
 
