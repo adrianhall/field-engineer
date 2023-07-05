@@ -326,8 +326,3 @@ module costManagement './_modules/common/cost-management.bicep' = {
 // OUTPUTS
 // ========================================================================
 
-output bastion_hostname string = hubNetwork.outputs.bastion_hostname
-output firewall_hostname string = hubNetwork.outputs.firewall_hostname
-
-output service_api_endpoints string[] = workloadResources.outputs.service_api_endpoints
-output service_web_endpoints string[] = workloadResources.outputs.service_web_endpoints

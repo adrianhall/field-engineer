@@ -1,59 +1,60 @@
+targetScope = 'resourceGroup'
+
+/*
+** Application Insights
+** Copyright (C) 2023 Microsoft, Inc.
+** All Rights Reserved
+**
+***************************************************************************
+**
+** Creates an Application Insights resource linked to the provided Log
+** Analytics Workspace.
+*/
+
 // ========================================================================
 // PARAMETERS
 // ========================================================================
 
-@description('The name of the dashboard to create; leave blank to not create a dashboard')
-param dashboardName string = ''
-
-@description('The Azure region to deploy this resource into.')
+@description('The Azure region for the resource.')
 param location string
 
-@description('The name of the main resource to deploy.')
+@description('The name of the primary resource')
 param name string
 
-@description('The tags to associate with the resource.')
+@description('The tags to associate with this resource.')
 param tags object = {}
 
 /*
 ** Dependencies
 */
-@description('The Resource ID for the Log Analytics Workspace.')
-param logAnalyticsWorkspaceId string
+@description('The ID of the Log Analytics workspace to use for diagnostics and logging.')
+param logAnalyticsWorkspaceId string = ''
 
 /*
 ** Settings
 */
 @allowed([ 'web', 'ios', 'other', 'store', 'java', 'phone' ])
+@description('The kind of application being monitored.')
 param kind string = 'web'
 
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
 
-resource createdResource 'Microsoft.Insights/components@2020-02-02' = {
+resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: name
   location: location
-  kind: kind
   tags: tags
+  kind: kind
   properties: {
     Application_Type: kind == 'web' ? 'web' : 'other'
     WorkspaceResourceId: logAnalyticsWorkspaceId
   }
 }
 
-module dashboard './application-insights-dashboard.bicep' = if (!empty(dashboardName)) {
-  name: dashboardName
-  params: {
-    name: dashboardName
-    location: location
-    tags: tags
-    applicationInsightsName: createdResource.name
-  }
-}
-
 // ========================================================================
-// VARIABLES
+// OUTPUTS
 // ========================================================================
 
-output id string = createdResource.id
-output name string = createdResource.name
+output id string = applicationInsights.id
+output name string = applicationInsights.name

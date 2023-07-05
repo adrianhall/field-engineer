@@ -1,21 +1,31 @@
+targetScope = 'resourceGroup'
+
+/*
+** Log Analytics Workspace
+** Copyright (C) 2023 Microsoft, Inc.
+** All Rights Reserved
+**
+***************************************************************************
+*/
+
 // ========================================================================
 // PARAMETERS
 // ========================================================================
 
-@description('The Azure region to deploy this resource into.')
+@description('The Azure region for the resource.')
 param location string
 
-@description('The name of the main resource to deploy.')
+@description('The name of the primary resource')
 param name string
 
-@description('The tags to associate with the resource.')
+@description('The tags to associate with this resource.')
 param tags object = {}
 
 /*
-** Settings
+** Dependencies
 */
 @allowed([ 'PerGB2018', 'PerNode', 'Premium', 'Standalone', 'Standard' ])
-@description('The name of the pricing SKU to choose.')
+@description('The name of the pricing SKU to use.')
 param sku string = 'PerGB2018'
 
 @minValue(0)
@@ -37,7 +47,7 @@ var quotaProperties = dailyQuotaInGB > 0 ? { dailyQuotaGb: dailyQuotaInGB } : {}
 // AZURE RESOURCES
 // ========================================================================
 
-resource createdResource 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
   name: name
   location: location
   tags: tags
@@ -45,8 +55,8 @@ resource createdResource 'Microsoft.OperationalInsights/workspaces@2022-10-01' =
 }
 
 // ========================================================================
-// VARIABLES
+// OUTPUTS
 // ========================================================================
 
-output id string = createdResource.id
-output name string = createdResource.name
+output id string = logAnalyticsWorkspace.id
+output name string = logAnalyticsWorkspace.name
