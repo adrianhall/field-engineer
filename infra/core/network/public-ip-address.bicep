@@ -106,13 +106,11 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
   scope: publicIpAddress
   properties: {
     workspaceId: logAnalyticsWorkspaceId
-    logs: [
-      {
-        category: 'allLogs'
-        enabled: diagnosticSettings!.enableLogs
-        retentionPolicy: { days: diagnosticSettings!.logRetentionInDays, enabled: true }
-      }
-    ]
+    logs: map( [ 'DDoSMitigationFlowLogs', 'DDoSMitigationReports', 'DDoSProtectionNotifications' ], (category) => {
+      category: category
+      enabled: diagnosticSettings!.enableLogs
+      retentionPolicy: { days: diagnosticSettings!.logRetentionInDays, enabled: true }
+    })
     metrics: [
       {
         category: 'AllMetrics'

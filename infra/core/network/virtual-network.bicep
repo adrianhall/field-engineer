@@ -91,7 +91,7 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
     workspaceId: logAnalyticsWorkspaceId
     logs: [
       {
-        category: 'allLogs'
+        category: 'VMProtectionAlerts'
         enabled: diagnosticSettings!.enableLogs
         retentionPolicy: { days: diagnosticSettings!.logRetentionInDays, enabled: true }
       }

@@ -93,6 +93,18 @@ param networkRuleCollections object[] = []
 
 var pipName = !empty(publicIpAddressName) ? publicIpAddressName : 'pip-${name}'
 
+var logCategories = [
+  'AZFWApplicationRuleAggregation'
+  'AZFWNatRuleAggregation'
+  'AZFWNetworkRuleAggregation'
+  'AZFWThreatIntel'
+  'AZFWApplicationRule'
+  'AZFWFlowTrace'
+  'AZFWIdpsSignature'
+  'AZFWNatRule'
+  'AZFWNetworkRule'
+]
+
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
@@ -156,13 +168,11 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
   scope: azureFirewall
   properties: {
     workspaceId: logAnalyticsWorkspaceId
-    logs: [
-      {
-        category: 'allLogs'
-        enabled: diagnosticSettings!.enableLogs
-        retentionPolicy: { days: diagnosticSettings!.logRetentionInDays, enabled: true }
-      }
-    ]
+    logs: map(logCategories, (category) => {
+      category: category
+      enabled: diagnosticSettings!.enableLogs
+      retentionPolicy: { days: diagnosticSettings!.logRetentionInDays, enabled: true }
+    })
     metrics: [
       {
         category: 'AllMetrics'

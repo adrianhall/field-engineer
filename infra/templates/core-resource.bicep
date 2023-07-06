@@ -1,14 +1,13 @@
 targetScope = 'resourceGroup'
 
 /*
-** Core Resource Template
+** Naming
 ** Copyright (C) 2023 Microsoft, Inc.
 ** All Rights Reserved
 **
 ***************************************************************************
 **
-** Core resource templates will create the resources requested, along with
-** appropriate diagnostics and linkage into a virtual network.
+** Provides the names of all resources that might be created by this template.
 */
 
 // ========================================================================
@@ -61,6 +60,19 @@ param logAnalyticsWorkspaceId string = ''
 */
 
 // ========================================================================
+// VARIABLES
+// ========================================================================
+
+var identity = !empty(managedIdentityId) ? {
+  type: 'UserAssigned'
+  userAssignedIdentities: {
+    '${managedIdentityId}': {}
+  }
+} : {
+  type: 'SystemAssigned'
+}
+
+// ========================================================================
 // AZURE RESOURCES
 // ========================================================================
 
@@ -97,3 +109,4 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
 // TODO: Output the ID & name of the resource
 
 // TODO: Decide on any additional outputs that are required.
+

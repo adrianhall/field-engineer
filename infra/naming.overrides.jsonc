@@ -1,0 +1,32 @@
+{
+    /*
+    ** Use this file to override any of the names that are chosen for resources.
+    */
+
+  // Hub network resources
+//   "hubBastionHost: "",
+//   "hubBastionPublicIpAddress: "",
+//   "hubDDoSProtectionPlan: "",
+//   "hubFirewall: "",
+//   "hubFirewallPublicIpAddress: "",
+//   "hubJumphost: "",
+//   "hubKeyVault: "",
+//   "hubResourceGroup: "",
+//   "hubRouteTable: "",
+//   "hubSubnetBastionHost: "",
+//   "hubSubnetFirewall: "",
+//   "hubSubnetJumphost: "",
+//   "hubVirtualNetwork: "",
+
+  // Common services - may be in hub or workload resource group
+//   applicationInsights: "",
+//   logAnalyticsWorkspace: "",
+
+  // Workload resources
+//   "resourceGroup": "",
+
+  /*
+  ** End of file - don't remove the next line as it signifies the end.
+  */
+  "__end__": ""
+}

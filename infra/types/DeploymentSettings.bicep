@@ -4,6 +4,9 @@ type DeploymentSettings = {
   @description('If \'true\', use production SKUs and settings.')
   isProduction: bool
 
+  @description('If \'true\', isolate the workload in a virtual network.')
+  isNetworkIsolated: bool
+
   @description('The primary Azure region to host resources')
   location: string
 

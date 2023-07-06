@@ -58,9 +58,6 @@ param subnetId string
 /*
 ** Settings
 */
-@description('If true, create a public IP address for the bastion host.')
-param enablePublicIpAddress bool = false
-
 @description('The name of the public IP address resource to create.  If not specified, a name will be generated.')
 param publicIpAddressName string = ''
 
@@ -81,7 +78,7 @@ var pipName = !empty(publicIpAddressName) ? publicIpAddressName : 'pip-${name}'
 // AZURE RESOURCES
 // ========================================================================
 
-module publicIpAddress '../network/public-ip-address.bicep' = if (enablePublicIpAddress) {
+module publicIpAddress '../network/public-ip-address.bicep' = {
   name: pipName
   params: {
     location: location
@@ -117,7 +114,7 @@ resource bastionHost 'Microsoft.Network/bastionHosts@2022-11-01' = {
         properties: {
           privateIPAllocationMethod: 'Dynamic'
           publicIPAddress: {
-            id: enablePublicIpAddress ? publicIpAddress.outputs.id : null
+            id: publicIpAddress.outputs.id
           }
           subnet: {
             id: subnetId
@@ -135,7 +132,7 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
     workspaceId: logAnalyticsWorkspaceId
     logs: [
       {
-        category: 'allLogs'
+        category: 'BastionAuditLogs'
         enabled: diagnosticSettings!.enableLogs
         retentionPolicy: { days: diagnosticSettings!.logRetentionInDays, enabled: true }
       }

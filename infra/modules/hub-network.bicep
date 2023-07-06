@@ -1,4 +1,4 @@
-targetScope = 'resourceGroup'
+targetScope = 'subscription'
 
 /*
 ** Hub Network Infrastructure
@@ -20,6 +20,9 @@ targetScope = 'resourceGroup'
 type DeploymentSettings = {
   @description('If \'true\', use production SKUs and settings.')
   isProduction: bool
+
+  @description('If \'true\', isolate the workload in a virtual network.')
+  isNetworkIsolated: bool
 
   @description('The primary Azure region to host resources')
   location: string
@@ -60,11 +63,11 @@ type DiagnosticSettings = {
 // PARAMETERS
 // ========================================================================
 
-@description('The diagnostic settings to use for this deployment.')
-param diagnosticSettings DiagnosticSettings?
-
 @description('The deployment settings to use for this deployment.')
 param deploymentSettings DeploymentSettings
+
+@description('The diagnostic settings to use for this deployment.')
+param diagnosticSettings DiagnosticSettings?
 
 @description('The resource names for the resources to be created.')
 param resourceNames object
@@ -72,11 +75,17 @@ param resourceNames object
 /*
 ** Settings
 */
-@description('The CIDR block to use for the address prefix of this virtual network.')
-param addressPrefix string
+@secure()
+@minLength(8)
+@description('The password for the administrator account on the jump host.')
+param administratorPassword string = newGuid()
 
-@description('If enabled, an App Gateway will be deployed with a public IP address.')
-param enableAppGateway bool = false
+@minLength(8)
+@description('The username for the administrator account on the jump host.')
+param administratorUsername string = 'adminuser'
+
+@description('The CIDR block to use for the address prefix of this virtual network.')
+param addressPrefix string = '10.0.0.0/20'
 
 @description('If enabled, a Bastion Host will be deployed with a public IP address.')
 param enableBastionHost bool = false
@@ -89,6 +98,9 @@ param enableFirewall bool = true
 
 @description('If enabled, a Windows 11 jump host will be deployed.  Ensure you enable the bastion host as well.')
 param enableJumpHost bool = false
+
+@description('If enabled, a Key Vault will be deployed in the resource group.')
+param enableKeyVault bool = false
 
 @description('If enabled, a Log Analytics Workspace will be deployed in the resource group.')
 param enableLogAnalytics bool = true
@@ -113,14 +125,6 @@ var moduleTags = union(deploymentSettings.tags, {
 var subnetPrefixes = [ for i in range(0, 16): cidrSubnet(addressPrefix, 26, i)]
 
 // The individual subnet definitions.
-var appGatewaySubnetDefinition = {
-  name: resourceNames.hubSubnetBastionHost
-  properties: {
-    addressPrefix: subnetPrefixes[2]
-    privateEndpointNetworkPolicies: 'Disabled'
-  }
-}
-
 var bastionHostSubnetDefinition = {
   name: resourceNames.hubSubnetBastionHost
   properties: {
@@ -146,7 +150,6 @@ var jumphostSubnetDefinition = {
 }
 
 var subnets = union(
-  enableAppGateway ? [appGatewaySubnetDefinition] : [],
   enableBastionHost ? [bastionHostSubnetDefinition] : [],
   enableFirewall ? [firewallSubnetDefinition] : [],
   enableJumpHost ? [jumphostSubnetDefinition] : []
@@ -213,8 +216,13 @@ var natRuleCollections = []
 // AZURE MODULES
 // ========================================================================
 
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' existing = {
+  name: resourceNames.hubResourceGroup
+}
+
 module ddosProtectionPlan '../core/network/ddos-protection-plan.bicep' = if (enableDDoSProtection) {
   name: 'hub-ddos-protection-plan'
+  scope: resourceGroup
   params: {
     name: resourceNames.hubDDoSProtectionPlan
     location: deploymentSettings.location
@@ -224,8 +232,9 @@ module ddosProtectionPlan '../core/network/ddos-protection-plan.bicep' = if (ena
 
 module logAnalytics '../core/monitor/log-analytics-workspace.bicep' = if (enableLogAnalytics) {
   name: 'hub-log-analytics'
+  scope: resourceGroup
   params: {
-    name: resourceNames.logAnalytics
+    name: resourceNames.logAnalyticsWorkspace
     location: deploymentSettings.location
     tags: moduleTags
 
@@ -236,6 +245,7 @@ module logAnalytics '../core/monitor/log-analytics-workspace.bicep' = if (enable
 
 module applicationInsights '../core/monitor/application-insights.bicep' = if (enableApplicationInsights && enableLogAnalytics) {
   name: 'hub-application-insights'
+  scope: resourceGroup
   params: {
     name: resourceNames.applicationInsights
     location: deploymentSettings.location
@@ -249,8 +259,28 @@ module applicationInsights '../core/monitor/application-insights.bicep' = if (en
   }
 }
 
+module keyVault '../core/security/key-vault.bicep' = if (enableJumpHost || enableKeyVault) {
+  name: 'hub-key-vault'
+  scope: resourceGroup
+  params: {
+    name: resourceNames.hubKeyVault
+    location: deploymentSettings.location
+    tags: moduleTags
+
+    // Dependencies
+    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalytics.outputs.id : ''
+
+    // Settings
+    diagnosticSettings: diagnosticSettings
+    ownerIdentities: [
+      { principalId: deploymentSettings.principalId, principalType: deploymentSettings.principalType }
+    ]
+  }
+}
+
 module virtualNetwork '../core/network/virtual-network.bicep' = {
   name: 'hub-virtual-network'
+  scope: resourceGroup
   params: {
     name: resourceNames.hubVirtualNetwork
     location: deploymentSettings.location
@@ -269,6 +299,7 @@ module virtualNetwork '../core/network/virtual-network.bicep' = {
 
 module firewall '../core/network/firewall.bicep' = if (enableFirewall) {
   name: 'hub-firewall'
+  scope: resourceGroup
   params: {
     name: resourceNames.hubFirewall
     location: deploymentSettings.location
@@ -292,8 +323,31 @@ module firewall '../core/network/firewall.bicep' = if (enableFirewall) {
   }
 }
 
+module routeTable '../core/network/route-table.bicep' = if (enableFirewall) {
+  name: 'hub-route-table'
+  scope: resourceGroup
+  params: {
+    name: resourceNames.hubRouteTable
+    location: deploymentSettings.location
+    tags: moduleTags
+
+    // Settings
+    routes: [
+      {
+        name: 'defaultEgress'
+        properties: {
+          addressPrefix: '0.0.0.0/0'
+          nextHopIpAddress: firewall.outputs.internal_ip_address
+          nextHopType: 'VirtualAppliance'
+        }
+      }
+    ]
+  }
+}
+
 module bastionHost '../core/network/bastion-host.bicep' = if (enableBastionHost) {
   name: 'hub-bastion-host'
+  scope: resourceGroup
   params: {
     name: resourceNames.hubBastionHost
     location: deploymentSettings.location
@@ -305,16 +359,44 @@ module bastionHost '../core/network/bastion-host.bicep' = if (enableBastionHost)
 
     // Settings
     diagnosticSettings: diagnosticSettings
-    enablePublicIpAddress: deploymentSettings.isProduction
     publicIpAddressName: resourceNames.hubBastionPublicIpAddress
     sku: deploymentSettings.isProduction ? 'Standard' : 'Basic'
     zoneRedundant: deploymentSettings.isProduction
   }
 }
 
-// TODO: App Gateway
+module jumphost '../core/compute/windows-jumphost.bicep' = if (enableJumpHost) {
+  name: 'hub-jumphost'
+  scope: resourceGroup
+  params: {
+    name: resourceNames.hubJumphost
+    location: deploymentSettings.location
+    tags: moduleTags
 
-// TODO: Jump Host (from Landing Zone Accelerator)
+    // Dependencies
+    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalytics.outputs.id : ''
+    subnetId: virtualNetwork.outputs.subnets[resourceNames.hubSubnetJumphost].id
+
+    // Settings
+    administratorPassword: administratorPassword
+    administratorUsername: administratorUsername
+    diagnosticSettings: diagnosticSettings
+    
+  }
+}
+
+module writeJumpHostCredentials '../core/security/key-vault-secrets.bicep' = if (enableJumpHost) {
+  name: 'hub-write-jumphost-credentials'
+  scope: resourceGroup
+  params: {
+    name: keyVault.outputs.name
+    secrets: [
+      { key: 'Jumphost--AdministratorPassword', value: administratorPassword          }
+      { key: 'Jumphost--AdministratorUsername', value: administratorUsername          }
+      { key: 'Jumphost--ComputerName',          value: jumphost.outputs.computer_name }
+    ]
+  }
+}
 
 // ========================================================================
 // OUTPUTS
@@ -324,5 +406,8 @@ output application_insights_id string = applicationInsights.outputs.id
 output bastion_hostname string = enableBastionHost ? bastionHost.outputs.hostname : ''
 output firewall_hostname string = enableFirewall ? firewall.outputs.hostname : ''
 output firewall_ip_address string = enableFirewall ? firewall.outputs.internal_ip_address : ''
+output jumphost_computer_name string = enableJumpHost ? jumphost.outputs.computer_name : ''
+output key_vault_id string = enableJumpHost || enableKeyVault ? keyVault.outputs.id : ''
+output route_table_id string = enableFirewall ? routeTable.outputs.id : ''
 output virtual_network_id string = virtualNetwork.outputs.id
 output workspace_id string = enableLogAnalytics ? logAnalytics.outputs.id : ''
