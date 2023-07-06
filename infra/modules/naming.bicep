@@ -70,6 +70,7 @@ var defaultResourceNames = {
   // Hub network resources
   hubBastionHost: 'bas-${resourceToken}'
   hubBastionPublicIpAddress: 'pip-bas-${resourceToken}'
+  hubBudget: 'budget-hub-${resourceToken}'
   hubDDoSProtectionPlan: 'ddos-${resourceToken}'
   hubFirewall: 'afw-${resourceToken}'
   hubFirewallPublicIpAddress: 'pip-afw-${resourceToken}'
@@ -98,19 +99,20 @@ output resourceToken string = resourceToken
 
 output resourceNames object = {
     // Hub network resources
+    hubBastionHost: contains(overrides, 'hubBastionHost') && !empty(overrides.hubBastionHost) ? overrides.hubBastionHost : defaultResourceNames.hubBastionHost
+    hubBastionPublicIpAddress: contains(overrides, 'hubBastionPublicIpAddress') && !empty(overrides.hubBastionPublicIpAddress) ? overrides.hubBastionPublicIpAddress : defaultResourceNames.hubBastionPublicIpAddress
+    hubBudget: contains(overrides, 'hubBudget') && !empty(overrides.hubBudget) ? overrides.hubBudget : defaultResourceNames.hubBudget
+    hubDDoSProtectionPlan: contains(overrides, 'hubDDoSProtectionPlan') && !empty(overrides.hubDDoSProtectionPlan) ? overrides.hubDDoSProtectionPlan : defaultResourceNames.hubDDoSProtectionPlan
+    hubFirewall: contains(overrides, 'hubFirewall') && !empty(overrides.hubFirewall) ? overrides.hubFirewall : defaultResourceNames.hubFirewall
+    hubFirewallPublicIpAddress: contains(overrides, 'hubFirewallPublicIpAddress') && !empty(overrides.hubFirewallPublicIpAddress) ? overrides.hubFirewallPublicIpAddress : defaultResourceNames.hubFirewallPublicIpAddress
+    hubJumphost: contains(overrides, 'hubJumphost') && !empty(overrides.hubJumphost) ? overrides.hubJumphost : defaultResourceNames.hubJumphost
+    hubKeyVault: contains(overrides, 'hubKeyVault') && !empty(overrides.hubKeyVault) ? overrides.hubKeyVault : defaultResourceNames.hubKeyVault
     hubResourceGroup: contains(overrides, 'hubResourceGroup') && !empty(overrides.hubResourceGroup) ? overrides.hubResourceGroup : defaultResourceNames.hubResourceGroup
+    hubRouteTable: contains(overrides, 'hubRouteTable') && !empty(overrides.hubRouteTable) ? overrides.hubRouteTable : defaultResourceNames.hubRouteTable
     hubSubnetBastionHost: contains(overrides, 'hubSubnetBastionHost') && !empty(overrides.hubSubnetBastionHost) ? overrides.hubSubnetBastionHost : defaultResourceNames.hubSubnetBastionHost
     hubSubnetFirewall: contains(overrides, 'hubSubnetFirewall') && !empty(overrides.hubSubnetFirewall) ? overrides.hubSubnetFirewall : defaultResourceNames.hubSubnetFirewall
     hubSubnetJumphost: contains(overrides, 'hubSubnetJumphost') && !empty(overrides.hubSubnetJumphost) ? overrides.hubSubnetJumphost : defaultResourceNames.hubSubnetJumphost
     hubVirtualNetwork: contains(overrides, 'hubVirtualNetwork') && !empty(overrides.hubVirtualNetwork) ? overrides.hubVirtualNetwork : defaultResourceNames.hubVirtualNetwork
-    hubKeyVault: contains(overrides, 'hubKeyVault') && !empty(overrides.hubKeyVault) ? overrides.hubKeyVault : defaultResourceNames.hubKeyVault
-    hubDDoSProtectionPlan: contains(overrides, 'hubDDoSProtectionPlan') && !empty(overrides.hubDDoSProtectionPlan) ? overrides.hubDDoSProtectionPlan : defaultResourceNames.hubDDoSProtectionPlan
-    hubFirewall: contains(overrides, 'hubFirewall') && !empty(overrides.hubFirewall) ? overrides.hubFirewall : defaultResourceNames.hubFirewall
-    hubFirewallPublicIpAddress: contains(overrides, 'hubFirewallPublicIpAddress') && !empty(overrides.hubFirewallPublicIpAddress) ? overrides.hubFirewallPublicIpAddress : defaultResourceNames.hubFirewallPublicIpAddress
-    hubRouteTable: contains(overrides, 'hubRouteTable') && !empty(overrides.hubRouteTable) ? overrides.hubRouteTable : defaultResourceNames.hubRouteTable
-    hubBastionHost: contains(overrides, 'hubBastionHost') && !empty(overrides.hubBastionHost) ? overrides.hubBastionHost : defaultResourceNames.hubBastionHost
-    hubBastionPublicIpAddress: contains(overrides, 'hubBastionPublicIpAddress') && !empty(overrides.hubBastionPublicIpAddress) ? overrides.hubBastionPublicIpAddress : defaultResourceNames.hubBastionPublicIpAddress
-    hubJumphost: contains(overrides, 'hubJumphost') && !empty(overrides.hubJumphost) ? overrides.hubJumphost : defaultResourceNames.hubJumphost
   
     // Common services - may be in hub or workload resource group
     applicationInsights: contains(overrides, 'applicationInsights') && !empty(overrides.applicationInsights) ? overrides.applicationInsights : defaultResourceNames.applicationInsights

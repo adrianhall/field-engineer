@@ -65,7 +65,7 @@ param subnetId string
 @description('The name of the Public IP Address resource to use for outbound connectivity.  If not specified, a name will be created.')
 param publicIpAddressName string = ''
 
-@allowed([ 'Standard', 'Premium' ])
+@allowed([ 'Basic', 'Standard', 'Premium' ])
 @description('The pricing SKU to configure.')
 param sku string = 'Standard'
 

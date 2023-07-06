@@ -212,6 +212,29 @@ var applicationRuleCollections = [
 var networkRuleCollections = []
 var natRuleCollections = []
 
+// Budget amounts
+//  All values are calculated in dollars (rounded to nearest dollar) in the South Central US region.
+var budgetCategories = deploymentSettings.isProduction ? {
+  ddosProtectionPlan: 0         /* Includes protection for 100 public IP addresses */
+  azureMonitor: 87              /* Estimate 1GiB/day Analytics, 1GiB/day Basic Logs  */
+  applicationInsights: 152      /* Estimate 5GiB/day Application Insights */
+  keyVault: 1                   /* Minimal usage - < 100 operations per month */
+  virtualNetwork: 0             /* Virtual networks are free - peering included in spoke */
+  firewall: 290                 /* Basic plan, 100GiB processed */
+  bastionHost: 212              /* Standard plan */
+  jumphost: 85                  /* Standard_B2ms, S10 managed disk, minimal bandwidth usage */
+} : {
+  ddosProtectionPlan: 0         /* Includes protection for 100 public IP addresses */
+  azureMonitor: 69              /* Estimate 1GiB/day Analytics + Basic Logs  */
+  applicationInsights: 187      /* Estimate 1GiB/day Application Insights */
+  keyVault: 1                   /* Minimal usage - < 100 operations per month */
+  virtualNetwork: 0             /* Virtual networks are free - peering included in spoke */
+  firewall: 290                 /* Standard plan, 100GiB processed */
+  bastionHost: 139              /* Basic plan */
+  jumphost: 85                  /* Standard_B2ms, S10 managed disk, minimal bandwidth usage */
+}
+var budgetAmount = reduce(map(items(budgetCategories), (obj) => obj.value), 0, (total, amount) => total + amount)
+
 // ========================================================================
 // AZURE MODULES
 // ========================================================================
@@ -394,6 +417,21 @@ module writeJumpHostCredentials '../core/security/key-vault-secrets.bicep' = if 
       { key: 'Jumphost--AdministratorPassword', value: administratorPassword          }
       { key: 'Jumphost--AdministratorUsername', value: administratorUsername          }
       { key: 'Jumphost--ComputerName',          value: jumphost.outputs.computer_name }
+    ]
+  }
+}
+
+module hubBudget '../core/cost-management/budget.bicep' = {
+  name: 'hub-budget'
+  scope: resourceGroup
+  params: {
+    name: resourceNames.hubBudget
+    amount: budgetAmount
+    contactEmails: [
+      deploymentSettings.tags['azd-owner-email']
+    ]
+    resourceGroups: [
+      resourceGroup.name
     ]
   }
 }
