@@ -40,6 +40,9 @@ type DeploymentSettings = {
 
   @description('The common tags that should be used for all created resources')
   tags: object
+
+  @description('The common tags that should be used for all workload resources')
+  workloadTags: object
 }
 
 // ========================================================================
@@ -60,7 +63,7 @@ param deployHubNetwork bool
 // ========================================================================
 
 var createHub = deployHubNetwork && resourceNames.hubResourceGroup != resourceNames.resourceGroup
-// var createSpoke = deploymentSettings.isNetworkIsolated && resourceNames.spokeResourceGroup != resourceNames.resourceGroup
+var createSpoke = deploymentSettings.isNetworkIsolated && resourceNames.spokeResourceGroup != resourceNames.resourceGroup
 
 // ========================================================================
 // AZURE RESOURCES
@@ -73,4 +76,16 @@ resource hubResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = if (
     WorkloadName: 'NetworkHub'
     OpsCommitment: 'Platform operations'
   })
+}
+
+resource spokeResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = if (createSpoke) {
+  name: resourceNames.spokeResourceGroup
+  location: deploymentSettings.location
+  tags: union(deploymentSettings.tags, deploymentSettings.workloadTags)
+}
+
+resource workloadResourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = {
+  name: resourceNames.resourceGroup
+  location: deploymentSettings.location
+  tags: union(deploymentSettings.tags, deploymentSettings.workloadTags)
 }

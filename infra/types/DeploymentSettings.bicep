@@ -24,4 +24,7 @@ type DeploymentSettings = {
 
   @description('The common tags that should be used for all created resources')
   tags: object
+
+  @description('The common tags that should be used for all workload resources')
+  workloadTags: object
 }

@@ -107,6 +107,13 @@ var deploymentSettings = {
     'azd-owner-email': ownerEmail
     'azd-owner-name': ownerName
   }
+  workloadTags: {
+    WorkloadName: environmentName
+    Environment: environmentType
+    OwnerName: ownerEmail
+    ServiceClass: isProduction ? 'Silver' : 'Dev'
+    OpsCommitment: 'Workload operations'
+  }
 }
 
 var diagnosticSettings = {
@@ -188,7 +195,43 @@ module hubNetwork './modules/hub-network.bicep' = if (willDeployHubNetwork) {
   ]
 }
 
+/*
+** The hub network MAY have created an Azure Monitor workspace.  If it did, we don't need
+** to do it again.  If not, we'll create one in the workload resource group
+*/
+module azureMonitor './modules/azure-monitor.bicep' = {
+  name: '${prefix}-azure-monitor'
+  params: {
+    deploymentSettings: deploymentSettings
+    diagnosticSettings: diagnosticSettings
+    resourceNames: naming.outputs.resourceNames
+
+    // Settings
+    applicationInsightsId: willDeployHubNetwork ? hubNetwork.outputs.application_insights_id : ''
+    logAnalyticsWorkspaceId: willDeployHubNetwork ? hubNetwork.outputs.log_analytics_workspace_id : ''
+    resourceGroupName: naming.outputs.resourceNames.resourceGroup
+  }
+  dependsOn: [
+    resourceGroups
+  ]
+}
+
+// TODO: Spoke network
+
+// TODO: Network peering (hub <-> spoke)
+
+// TODO: Workload resources
+
+// TODO: Post provisioning configuration (key vault, database roles, etc.)
+
+// TODO: Cost management (budgets, alerts, etc.)
+
 // ========================================================================
 // OUTPUTS
 // ========================================================================
 
+// Hub resources
+output bastion_hostname string = willDeployHubNetwork ? hubNetwork.outputs.bastion_hostname : ''
+output firewall_hostname string = willDeployHubNetwork ? hubNetwork.outputs.firewall_hostname : ''
+
+// Workload resources

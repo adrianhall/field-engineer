@@ -41,6 +41,9 @@ type DeploymentSettings = {
 
   @description('The common tags that should be used for all created resources')
   tags: object
+
+  @description('The common tags that should be used for all workload resources')
+  workloadTags: object
 }
 
 // From: infra/types/DiagnosticSettings.bicep
@@ -119,6 +122,7 @@ param internalAddressSpace string[] = [ '10.0.0.0/8', '172.16.0.0/12', '192.168.
 var moduleTags = union(deploymentSettings.tags, {
   WorkloadName: 'NetworkHub'
   OpsCommitment: 'Platform operations'
+  ServiceClass: deploymentSettings.isProduction ? 'Gold' : 'Dev'
 })
 
 // The subnet prefixes for the individual subnets inside the virtual network
@@ -446,6 +450,6 @@ output firewall_hostname string = enableFirewall ? firewall.outputs.hostname : '
 output firewall_ip_address string = enableFirewall ? firewall.outputs.internal_ip_address : ''
 output jumphost_computer_name string = enableJumpHost ? jumphost.outputs.computer_name : ''
 output key_vault_id string = enableJumpHost || enableKeyVault ? keyVault.outputs.id : ''
+output log_analytics_workspace_id string = enableLogAnalytics ? logAnalytics.outputs.id : ''
 output route_table_id string = enableFirewall ? routeTable.outputs.id : ''
 output virtual_network_id string = virtualNetwork.outputs.id
-output workspace_id string = enableLogAnalytics ? logAnalytics.outputs.id : ''
