@@ -216,9 +216,43 @@ module azureMonitor './modules/azure-monitor.bicep' = {
   ]
 }
 
-// TODO: Spoke network
+/*
+** The spoke network is the network that the workload resources are deployed into.
+*/
+module spokeNetwork './modules/spoke-network.bicep' = if (isNetworkIsolated) {
+  name: '${prefix}-spoke-network'
+  params: {
+    deploymentSettings: deploymentSettings
+    diagnosticSettings: diagnosticSettings
+    resourceNames: naming.outputs.resourceNames
 
-// TODO: Network peering (hub <-> spoke)
+    // Dependencies
+    logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
+    routeTableId: willDeployHubNetwork ? hubNetwork.outputs.route_table_id : ''
+  }
+  dependsOn: [
+    resourceGroups
+  ]
+}
+
+/*
+** Now that the networking resources have been created, we need to peer the networks.  This is
+** only done if the hub network was created in this deployment.  If the hub network was not
+** deployed, then a manual peering process needs to be done.
+*/
+module peerVirtualNetworks './modules/peer-networks.bicep' = if (willDeployHubNetwork && isNetworkIsolated) {
+  name: '${prefix}-peer-networks'
+  params: {
+    hubNetwork: {
+      name: hubNetwork.outputs.virtual_network_name
+      resourceGroupName: naming.outputs.resourceNames.hubResourceGroup
+    }
+    spokeNetwork: {
+      name: spokeNetwork.outputs.virtual_network_name
+      resourceGroupName: naming.outputs.resourceNames.spokeResourceGroup
+    }
+  }
+}
 
 // TODO: Workload resources
 

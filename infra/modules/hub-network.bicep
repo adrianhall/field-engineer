@@ -453,3 +453,4 @@ output key_vault_id string = enableJumpHost || enableKeyVault ? keyVault.outputs
 output log_analytics_workspace_id string = enableLogAnalytics ? logAnalytics.outputs.id : ''
 output route_table_id string = enableFirewall ? routeTable.outputs.id : ''
 output virtual_network_id string = virtualNetwork.outputs.id
+output virtual_network_name string = virtualNetwork.outputs.name
