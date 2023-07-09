@@ -163,6 +163,21 @@ module resourceGroups './modules/resource-groups.bicep' = {
 }
 
 /*
+** Azure Monitor Resources - create this either in the hub or the spoke network.
+*/
+module azureMonitor './modules/azure-monitor.bicep' = {
+  name: '${prefix}-azure-monitor'
+  params: {
+    deploymentSettings: deploymentSettings
+    resourceNames: naming.outputs.resourceNames
+    resourceGroupName: willDeployHubNetwork ? naming.outputs.resourceNames.hubResourceGroup : naming.outputs.resourceNames.resourceGroup
+  }
+  dependsOn: [
+    resourceGroups
+  ]
+}
+
+/*
 ** Create the hub network, if requested. 
 **
 ** The hub network consists of the following resources
@@ -179,16 +194,17 @@ module hubNetwork './modules/hub-network.bicep' = if (willDeployHubNetwork) {
     diagnosticSettings: diagnosticSettings
     resourceNames: naming.outputs.resourceNames
 
+    // Dependencies
+    logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
+
     // Settings
     administratorPassword: administratorPassword
     administratorUsername: administratorUsername
     enableBastionHost: true
-    enableApplicationInsights: true
     enableDDoSProtection: deploymentSettings.isProduction
     enableFirewall: true
     enableJumpHost: true
     enableKeyVault: true
-    enableLogAnalytics: true
   }
   dependsOn: [
     resourceGroups
@@ -199,22 +215,7 @@ module hubNetwork './modules/hub-network.bicep' = if (willDeployHubNetwork) {
 ** The hub network MAY have created an Azure Monitor workspace.  If it did, we don't need
 ** to do it again.  If not, we'll create one in the workload resource group
 */
-module azureMonitor './modules/azure-monitor.bicep' = {
-  name: '${prefix}-azure-monitor'
-  params: {
-    deploymentSettings: deploymentSettings
-    diagnosticSettings: diagnosticSettings
-    resourceNames: naming.outputs.resourceNames
 
-    // Settings
-    applicationInsightsId: willDeployHubNetwork ? hubNetwork.outputs.application_insights_id : ''
-    logAnalyticsWorkspaceId: willDeployHubNetwork ? hubNetwork.outputs.log_analytics_workspace_id : ''
-    resourceGroupName: naming.outputs.resourceNames.resourceGroup
-  }
-  dependsOn: [
-    resourceGroups
-  ]
-}
 
 /*
 ** The spoke network is the network that the workload resources are deployed into.
@@ -244,19 +245,40 @@ module peerVirtualNetworks './modules/peer-networks.bicep' = if (willDeployHubNe
   name: '${prefix}-peer-networks'
   params: {
     hubNetwork: {
-      name: hubNetwork.outputs.virtual_network_name
+      name: willDeployHubNetwork ? hubNetwork.outputs.virtual_network_name : ''
       resourceGroupName: naming.outputs.resourceNames.hubResourceGroup
     }
     spokeNetwork: {
-      name: spokeNetwork.outputs.virtual_network_name
+      name: isNetworkIsolated ? spokeNetwork.outputs.virtual_network_name : ''
       resourceGroupName: naming.outputs.resourceNames.spokeResourceGroup
     }
   }
 }
 
-// TODO: Workload resources
+module workload './modules/workload.bicep' = {
+  name: '${prefix}-workload'
+  params: {
+    deploymentSettings: deploymentSettings
+    diagnosticSettings: diagnosticSettings
+    resourceNames: naming.outputs.resourceNames
 
-// TODO: Post provisioning configuration (key vault, database roles, etc.)
+    // Dependencies
+    applicationInsightsId: azureMonitor.outputs.application_insights_id
+    logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
+    subnets: isNetworkIsolated ? spokeNetwork.outputs.subnets : {}
+
+    // Settings
+    administratorPassword: administratorPassword
+    administratorUsername: administratorUsername
+    useCommonAppServicePlan: willDeployCommonAppServicePlan
+  }
+  dependsOn: [
+    resourceGroups
+    spokeNetwork
+  ]
+}
+
+// TODO: Post provisioning configuration (database roles, etc.)
 
 // TODO: Cost management (budgets, alerts, etc.)
 

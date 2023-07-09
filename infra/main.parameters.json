@@ -17,7 +17,7 @@
         "principalType": {
             "value": "${AZURE_PRINCIPAL_TYPE=User}"
         },
-        "deployHubVirtualNetwork": {
+        "deployHubNetwork": {
             "value": "${DEPLOY_HUB_NETWORK=false}"
         },
         "networkIsolation": {

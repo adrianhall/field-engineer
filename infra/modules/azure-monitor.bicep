@@ -69,22 +69,10 @@ type DiagnosticSettings = {
 @description('The deployment settings to use for this deployment.')
 param deploymentSettings DeploymentSettings
 
-@description('The diagnostic settings to use for this deployment.')
-param diagnosticSettings DiagnosticSettings?
-
 @description('The resource names for the resources to be created.')
 param resourceNames object
 
-/*
-** Settings
-*/
-@description('The ID of the Application Insights resource, if it has already been created.')
-param applicationInsightsId string = ''
-
-@description('The ID of the Log Analytics Workspace resource, if it has already been created.')
-param logAnalyticsWorkspaceId string = ''
-
-@description('The name of the resource group in which to create any resources.')
+@description('The name of the resource group which should hold Azure Monitor resources.')
 param resourceGroupName string
 
 // ========================================================================
@@ -108,7 +96,7 @@ resource resourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' existing 
   name: resourceGroupName
 }
 
-module logAnalytics '../core/monitor/log-analytics-workspace.bicep' = if (!empty(logAnalyticsWorkspaceId)) {
+module logAnalytics '../core/monitor/log-analytics-workspace.bicep' = {
   name: 'workload-log-analytics'
   scope: resourceGroup
   params: {
@@ -121,7 +109,7 @@ module logAnalytics '../core/monitor/log-analytics-workspace.bicep' = if (!empty
   }
 }
 
-module applicationInsights '../core/monitor/application-insights.bicep' = if (!empty(applicationInsightsId)) {
+module applicationInsights '../core/monitor/application-insights.bicep' = {
   name: 'workload-application-insights'
   scope: resourceGroup
   params: {
@@ -130,7 +118,7 @@ module applicationInsights '../core/monitor/application-insights.bicep' = if (!e
     tags: moduleTags
 
     // Dependencies
-    logAnalyticsWorkspaceId: !empty(logAnalyticsWorkspaceId) ? logAnalyticsWorkspaceId : logAnalytics.outputs.id 
+    logAnalyticsWorkspaceId: logAnalytics.outputs.id 
 
     // Settings
     kind: 'web'
@@ -141,5 +129,5 @@ module applicationInsights '../core/monitor/application-insights.bicep' = if (!e
 // OUTPUTS
 // ========================================================================
 
-output application_insights_id string = !empty(applicationInsightsId) ? applicationInsightsId : applicationInsights.outputs.id
-output log_analytics_workspace_id string = !empty(logAnalyticsWorkspaceId) ? logAnalyticsWorkspaceId : logAnalytics.outputs.id
+output application_insights_id string = applicationInsights.outputs.id
+output log_analytics_workspace_id string = logAnalytics.outputs.id

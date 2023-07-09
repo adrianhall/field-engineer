@@ -1,28 +1,16 @@
 targetScope = 'resourceGroup'
 
 /*
-** Key Vault
+** SQL Database on an existing SQL Server
 ** Copyright (C) 2023 Microsoft, Inc.
 ** All Rights Reserved
 **
 ***************************************************************************
-**
-** Creates a Key Vault resource, including permission grants and diagnostics.
 */
 
 // ========================================================================
 // USER-DEFINED TYPES
 // ========================================================================
-
-// From: infra/types/ApplicationIdentity.bicep
-@description('Type describing an application identity.')
-type ApplicationIdentity = {
-  @description('The ID of the identity')
-  principalId: string
-
-  @description('The type of identity - either ServicePrincipal or User')
-  principalType: 'ServicePrincipal' | 'User'
-}
 
 // From: infra/types/DiagnosticSettings.bicep
 @description('The diagnostic settings for a resource')
@@ -75,31 +63,28 @@ param tags object = {}
 @description('The ID of the Log Analytics workspace to use for diagnostics and logging.')
 param logAnalyticsWorkspaceId string = ''
 
+@description('The SQL Server resource name.')
+param sqlServerName string
+
 /*
 ** Settings
 */
-@description('Whether or not public endpoint access is allowed for this server')
-param enablePublicNetworkAccess bool = true
-
-@description('The list of application identities to be granted owner access to the workload resources.')
-param ownerIdentities ApplicationIdentity[] = []
+@description('The number of DTUs to allocate to the database.')
+param dtuCapacity int
 
 @description('If set, the private endpoint settings for this resource')
 param privateEndpointSettings PrivateEndpointSettings?
 
-@description('The list of application identities to be granted reader access to the workload resources.')
-param readerIdentities ApplicationIdentity[] = []
+@allowed([ 'Basic', 'Standard', 'Premium' ])
+@description('The service tier to use for the database.')
+param sku string = 'Basic'
+
+@description('If true, enable availability zone redundancy.')
+param zoneRedundant bool = false
 
 // ========================================================================
 // VARIABLES
 // ========================================================================
-
-@description('Built in \'Key Vault Administrator\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
-var vaultAdministratorRoleId = '00482a5a-887f-4fb3-b363-3b7fe8e74483'
-
-@description('Built in \'Key Vault Secrets User\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
-var vaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
-
 
 var actualPrivateEndpointSettings = union(privateEndpointSettings ?? {}, {
   name: 'pe-${name}'
@@ -107,44 +92,45 @@ var actualPrivateEndpointSettings = union(privateEndpointSettings ?? {}, {
   subnetId: ''
 })
 
+var logCategories = [
+  'SQLSecurityAuditEvents'
+  'DevOpsOperationsAudit'
+  'AutomaticTuning'
+  'Blocks'
+  'DatabaseWaitStatistics'
+  'Deadlocks'
+  'Errors'
+  'QueryStoreRuntimeStatistics'
+  'QueryStoreWaitStatistics'
+  'SQLInsights'
+  'Timeouts'
+]
+
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
-  name: name
-  location: location
-  tags: tags
-  properties: {
-    enableRbacAuthorization: true
-    publicNetworkAccess: enablePublicNetworkAccess ? 'Enabled' : 'Disabled'
-    sku: {
-      family: 'A'
-      name: 'standard'
-    }
-    tenantId: subscription().tenantId
-  }
+resource sqlServer 'Microsoft.Sql/servers@2021-11-01' existing = {
+  name: sqlServerName
 }
 
-resource grantVaultAdminAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in ownerIdentities: if (!empty(id.principalId)) {
-  name: guid(vaultAdministratorRoleId, id.principalId, keyVault.id, resourceGroup().name)
-  scope: keyVault
-  properties: {
-    principalType: id.principalType
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', vaultAdministratorRoleId)
-    principalId: id.principalId
+resource sqlDatabase 'Microsoft.Sql/servers/databases@2021-11-01' = {
+  name: name
+  parent: sqlServer
+  location: location
+  tags: union(tags, { displayName: name })
+  sku: {
+    name: sku
+    tier: sku
+    capacity: sku == 'Basic' ? 5 : dtuCapacity
   }
-}]
-
-resource grantSecretsUserAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in readerIdentities: if (!empty(id.principalId)) {
-  name: guid(vaultSecretsUserRoleId, id.principalId, keyVault.id, resourceGroup().name)
-  scope: keyVault
   properties: {
-    principalType: id.principalType
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', vaultSecretsUserRoleId)
-    principalId: id.principalId
+    requestedBackupStorageRedundancy: zoneRedundant ? 'Zone' : 'Local'
+    readScale: sku == 'Premium' ? 'Enabled' : 'Disabled'
+    collation: 'SQL_Latin1_General_CP1_CI_AS'
+    zoneRedundant: zoneRedundant
   }
-}]
+}
 
 module privateEndpoint '../network/private-endpoint.bicep' = if (!empty(actualPrivateEndpointSettings.subnetId)) {
   name: '${name}-private-endpoint'
@@ -155,22 +141,22 @@ module privateEndpoint '../network/private-endpoint.bicep' = if (!empty(actualPr
     tags: tags
 
     // Dependencies
-    linkServiceId: keyVault.id
-    linkServiceName: keyVault.name
+    linkServiceId: sqlServer.id
+    linkServiceName: '${sqlServer.name}/${sqlDatabase.name}'
     subnetId: actualPrivateEndpointSettings.subnetId
 
     // Settings
-    dnsZoneName: 'privatelink.vaultcore.azure.net'
-    groupIds: [ 'vault' ]
+    dnsZoneName: 'privatelink${az.environment().suffixes.sqlServerHostname}'
+    groupIds: [ 'sqlServer' ]
   }
 }
 
 resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (diagnosticSettings != null && !empty(logAnalyticsWorkspaceId)) {
   name: '${name}-diagnostics'
-  scope: keyVault
+  scope: sqlDatabase
   properties: {
     workspaceId: logAnalyticsWorkspaceId
-    logs: map([ 'AuditEvent', 'AzurePolicyEvaluationDetails' ], (category) => {
+    logs: map(logCategories, (category) => {
       category: category
       enabled: diagnosticSettings!.enableLogs
       retentionPolicy: { days: diagnosticSettings!.logRetentionInDays, enabled: true }
@@ -189,5 +175,10 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
 // OUTPUTS
 // ========================================================================
 
-output id string = keyVault.id
-output name string = keyVault.name
+output id string = sqlDatabase.id
+output name string = sqlDatabase.name
+output connection_string string = 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDatabase.name};Authentication=Active Directory Default'
+
+output sql_server_id string = sqlServer.id
+output sql_server_name string = sqlServer.name
+output sql_server_hostname string = sqlServer.properties.fullyQualifiedDomainName

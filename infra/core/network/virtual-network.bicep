@@ -34,8 +34,8 @@ type DiagnosticSettings = {
 // PARAMETERS
 // ========================================================================
 
-@description('The diagnostic settings for the service.')
-param diagnosticSettings DiagnosticSettings?
+@description('The diagnostic settings to use for logging and metrics.')
+param diagnosticSettings DiagnosticSettings
 
 @description('The Azure region for the resource.')
 param location string

@@ -1,28 +1,16 @@
 targetScope = 'resourceGroup'
 
 /*
-** Key Vault
+** An App Service running on a pre-existing App Service Plan
 ** Copyright (C) 2023 Microsoft, Inc.
 ** All Rights Reserved
 **
 ***************************************************************************
-**
-** Creates a Key Vault resource, including permission grants and diagnostics.
 */
 
 // ========================================================================
 // USER-DEFINED TYPES
 // ========================================================================
-
-// From: infra/types/ApplicationIdentity.bicep
-@description('Type describing an application identity.')
-type ApplicationIdentity = {
-  @description('The ID of the identity')
-  principalId: string
-
-  @description('The type of identity - either ServicePrincipal or User')
-  principalType: 'ServicePrincipal' | 'User'
-}
 
 // From: infra/types/DiagnosticSettings.bicep
 @description('The diagnostic settings for a resource')
@@ -72,34 +60,48 @@ param tags object = {}
 /*
 ** Dependencies
 */
+@description('The name of the App Service Plan to use for compute resources.')
+param appServicePlanName string
+
+@description('The ID of a user-assigned managed identity to use as the identity for this resource.  Use a blank string for a system-assigned identity.')
+param managedIdentityId string = ''
+
 @description('The ID of the Log Analytics workspace to use for diagnostics and logging.')
 param logAnalyticsWorkspaceId string = ''
+
+@description('If using VNET integration, the ID of the subnet to route all outbound traffic through.')
+param outboundSubnetId string = ''
 
 /*
 ** Settings
 */
-@description('Whether or not public endpoint access is allowed for this server')
+@description('The list of App Settings for this App Service.')
+param appSettings object
+
+@description('If true, enable public network access for this resource.')
 param enablePublicNetworkAccess bool = true
 
-@description('The list of application identities to be granted owner access to the workload resources.')
-param ownerIdentities ApplicationIdentity[] = []
+@description('The list of IP security restrictions to configure.')
+param ipSecurityRestrictions object[] = []
 
 @description('If set, the private endpoint settings for this resource')
 param privateEndpointSettings PrivateEndpointSettings?
 
-@description('The list of application identities to be granted reader access to the workload resources.')
-param readerIdentities ApplicationIdentity[] = []
+@description('The service prefix to use.')
+param servicePrefix string
 
 // ========================================================================
 // VARIABLES
 // ========================================================================
 
-@description('Built in \'Key Vault Administrator\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
-var vaultAdministratorRoleId = '00482a5a-887f-4fb3-b363-3b7fe8e74483'
-
-@description('Built in \'Key Vault Secrets User\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
-var vaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
-
+var identity = !empty(managedIdentityId) ? {
+  type: 'UserAssigned'
+  userAssignedIdentities: {
+    '${managedIdentityId}': {}
+  }
+} : {
+  type: 'SystemAssigned'
+}
 
 var actualPrivateEndpointSettings = union(privateEndpointSettings ?? {}, {
   name: 'pe-${name}'
@@ -107,70 +109,83 @@ var actualPrivateEndpointSettings = union(privateEndpointSettings ?? {}, {
   subnetId: ''
 })
 
+var logCategories = [
+  'AppServiceAppLogs'
+  'AppServiceConsoleLogs'
+  'AppServiceHTTPLogs'
+  'AppServicePlatformLogs'
+]
+
+var defaultAppServiceProperties = {
+  clientAffinityEnabled: false
+  httpsOnly: true
+  publicNetworkAccess: enablePublicNetworkAccess ? 'Enabled' : 'Disabled'
+  serverFarmId: resourceId('Microsoft.Web/serverfarms', appServicePlanName)
+  siteConfig: {
+    alwaysOn: true
+    detailedErrorLoggingEnabled: diagnosticSettings.enableLogs
+    httpLoggingEnabled: diagnosticSettings.enableLogs
+    requestTracingEnabled: diagnosticSettings.enableLogs
+    ftpsState: 'Disabled'
+    ipSecurityRestrictions: ipSecurityRestrictions
+    minTlsVersion: '1.2'
+  }
+}
+
+var networkIsolationAppServiceProperties = !empty(outboundSubnetId) ? {
+  virtualNetworkSubnetId: outboundSubnetId
+  vnetRouteAllEnabled: true
+} : {}
+
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
+resource appService 'Microsoft.Web/sites@2022-09-01' = {
   name: name
   location: location
-  tags: tags
-  properties: {
-    enableRbacAuthorization: true
-    publicNetworkAccess: enablePublicNetworkAccess ? 'Enabled' : 'Disabled'
-    sku: {
-      family: 'A'
-      name: 'standard'
+  tags: union(tags, { 'azd-service-name': servicePrefix })
+  kind: 'web'
+  identity: identity
+  properties: union(defaultAppServiceProperties, networkIsolationAppServiceProperties)
+
+  resource configAppSettings 'config' = {
+    name: 'appsettings'
+    properties: appSettings
+  }
+
+  resource configLogs 'config' = {
+    name: 'logs'
+    properties: {
+      applicationLogs: {
+        fileSystem: { level: 'Verbose' }
+      }
+      detailedErrorMessages: {
+        enabled: true
+      }
+      failedRequestsTracing: {
+        enabled: true
+      }
+      httpLogs: {
+        fileSystem: {
+          enabled: true
+          retentionInDays: 2
+          retentionInMb: 100
+        }
+      }
     }
-    tenantId: subscription().tenantId
-  }
-}
-
-resource grantVaultAdminAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in ownerIdentities: if (!empty(id.principalId)) {
-  name: guid(vaultAdministratorRoleId, id.principalId, keyVault.id, resourceGroup().name)
-  scope: keyVault
-  properties: {
-    principalType: id.principalType
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', vaultAdministratorRoleId)
-    principalId: id.principalId
-  }
-}]
-
-resource grantSecretsUserAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [ for id in readerIdentities: if (!empty(id.principalId)) {
-  name: guid(vaultSecretsUserRoleId, id.principalId, keyVault.id, resourceGroup().name)
-  scope: keyVault
-  properties: {
-    principalType: id.principalType
-    roleDefinitionId: resourceId('Microsoft.Authorization/roleDefinitions', vaultSecretsUserRoleId)
-    principalId: id.principalId
-  }
-}]
-
-module privateEndpoint '../network/private-endpoint.bicep' = if (!empty(actualPrivateEndpointSettings.subnetId)) {
-  name: '${name}-private-endpoint'
-  scope: resourceGroup(actualPrivateEndpointSettings.resourceGroupName)
-  params: {
-    name: actualPrivateEndpointSettings.name
-    location: location
-    tags: tags
-
-    // Dependencies
-    linkServiceId: keyVault.id
-    linkServiceName: keyVault.name
-    subnetId: actualPrivateEndpointSettings.subnetId
-
-    // Settings
-    dnsZoneName: 'privatelink.vaultcore.azure.net'
-    groupIds: [ 'vault' ]
+    dependsOn: [
+      configAppSettings
+    ]
   }
 }
 
 resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (diagnosticSettings != null && !empty(logAnalyticsWorkspaceId)) {
   name: '${name}-diagnostics'
-  scope: keyVault
+  scope: appService
   properties: {
     workspaceId: logAnalyticsWorkspaceId
-    logs: map([ 'AuditEvent', 'AzurePolicyEvaluationDetails' ], (category) => {
+    logs: map(logCategories, (category) => {
       category: category
       enabled: diagnosticSettings!.enableLogs
       retentionPolicy: { days: diagnosticSettings!.logRetentionInDays, enabled: true }
@@ -185,9 +200,30 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
   }
 }
 
+module privateEndpoint '../network/private-endpoint.bicep' = if (!empty(actualPrivateEndpointSettings.subnetId)) {
+  name: '${name}-private-endpoint'
+  scope: resourceGroup(actualPrivateEndpointSettings.resourceGroupName)
+  params: {
+    name: actualPrivateEndpointSettings.name
+    location: location
+    tags: tags
+
+    // Dependencies
+    linkServiceId: appService.id
+    linkServiceName: appService.name
+    subnetId: actualPrivateEndpointSettings.subnetId
+
+    // Settings
+    dnsZoneName: 'privatelink.azurewebsites.net'
+    groupIds: [ 'sites' ]
+  }
+}
+
 // ========================================================================
 // OUTPUTS
 // ========================================================================
 
-output id string = keyVault.id
-output name string = keyVault.name
+output id string = appService.id
+output name string = appService.name
+output hostname string = appService.properties.defaultHostName
+output uri string = 'https://${appService.properties.defaultHostName}'

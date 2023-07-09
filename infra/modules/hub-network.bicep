@@ -70,10 +70,16 @@ type DiagnosticSettings = {
 param deploymentSettings DeploymentSettings
 
 @description('The diagnostic settings to use for this deployment.')
-param diagnosticSettings DiagnosticSettings?
+param diagnosticSettings DiagnosticSettings
 
 @description('The resource names for the resources to be created.')
 param resourceNames object
+
+/*
+** Dependencies
+*/
+@description('The ID of the Log Analytics workspace to use for diagnostics and logging.')
+param logAnalyticsWorkspaceId string = ''
 
 /*
 ** Settings
@@ -104,12 +110,6 @@ param enableJumpHost bool = false
 
 @description('If enabled, a Key Vault will be deployed in the resource group.')
 param enableKeyVault bool = false
-
-@description('If enabled, a Log Analytics Workspace will be deployed in the resource group.')
-param enableLogAnalytics bool = true
-
-@description('If enabled, an Application Insights instance will be deployed in the resource group.')
-param enableApplicationInsights bool = false
 
 @description('The address spaces allowed to connect through the firewall.  By default, we allow all RFC1918 address spaces')
 param internalAddressSpace string[] = [ '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16' ]
@@ -257,35 +257,6 @@ module ddosProtectionPlan '../core/network/ddos-protection-plan.bicep' = if (ena
   }
 }
 
-module logAnalytics '../core/monitor/log-analytics-workspace.bicep' = if (enableLogAnalytics) {
-  name: 'hub-log-analytics'
-  scope: resourceGroup
-  params: {
-    name: resourceNames.logAnalyticsWorkspace
-    location: deploymentSettings.location
-    tags: moduleTags
-
-    // Settings
-    sku: 'PerGB2018'
-  }
-}
-
-module applicationInsights '../core/monitor/application-insights.bicep' = if (enableApplicationInsights && enableLogAnalytics) {
-  name: 'hub-application-insights'
-  scope: resourceGroup
-  params: {
-    name: resourceNames.applicationInsights
-    location: deploymentSettings.location
-    tags: moduleTags
-
-    // Dependencies
-    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalytics.outputs.id : ''
-
-    // Settings
-    kind: 'web'
-  }
-}
-
 module keyVault '../core/security/key-vault.bicep' = if (enableJumpHost || enableKeyVault) {
   name: 'hub-key-vault'
   scope: resourceGroup
@@ -295,7 +266,7 @@ module keyVault '../core/security/key-vault.bicep' = if (enableJumpHost || enabl
     tags: moduleTags
 
     // Dependencies
-    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalytics.outputs.id : ''
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
 
     // Settings
     diagnosticSettings: diagnosticSettings
@@ -315,7 +286,7 @@ module virtualNetwork '../core/network/virtual-network.bicep' = {
 
     // Dependencies
     ddosProtectionPlanId: enableDDoSProtection ? ddosProtectionPlan.outputs.id : ''
-    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalytics.outputs.id : ''
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
 
     // Settings
     addressPrefix: addressPrefix
@@ -333,7 +304,7 @@ module firewall '../core/network/firewall.bicep' = if (enableFirewall) {
     tags: moduleTags
     
     // Dependencies
-    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalytics.outputs.id : ''
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     subnetId: virtualNetwork.outputs.subnets[resourceNames.hubSubnetFirewall].id
 
     // Settings
@@ -381,7 +352,7 @@ module bastionHost '../core/network/bastion-host.bicep' = if (enableBastionHost)
     tags: moduleTags
 
     // Dependencies
-    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalytics.outputs.id : ''
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     subnetId: virtualNetwork.outputs.subnets[resourceNames.hubSubnetBastionHost].id
 
     // Settings
@@ -401,7 +372,7 @@ module jumphost '../core/compute/windows-jumphost.bicep' = if (enableJumpHost) {
     tags: moduleTags
 
     // Dependencies
-    logAnalyticsWorkspaceId: enableLogAnalytics ? logAnalytics.outputs.id : ''
+    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
     subnetId: virtualNetwork.outputs.subnets[resourceNames.hubSubnetJumphost].id
 
     // Settings
@@ -444,13 +415,11 @@ module hubBudget '../core/cost-management/budget.bicep' = {
 // OUTPUTS
 // ========================================================================
 
-output application_insights_id string = applicationInsights.outputs.id
 output bastion_hostname string = enableBastionHost ? bastionHost.outputs.hostname : ''
 output firewall_hostname string = enableFirewall ? firewall.outputs.hostname : ''
 output firewall_ip_address string = enableFirewall ? firewall.outputs.internal_ip_address : ''
 output jumphost_computer_name string = enableJumpHost ? jumphost.outputs.computer_name : ''
 output key_vault_id string = enableJumpHost || enableKeyVault ? keyVault.outputs.id : ''
-output log_analytics_workspace_id string = enableLogAnalytics ? logAnalytics.outputs.id : ''
 output route_table_id string = enableFirewall ? routeTable.outputs.id : ''
 output virtual_network_id string = virtualNetwork.outputs.id
 output virtual_network_name string = virtualNetwork.outputs.name

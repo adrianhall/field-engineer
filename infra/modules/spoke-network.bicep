@@ -69,8 +69,8 @@ type DiagnosticSettings = {
 @description('The deployment settings to use for this deployment.')
 param deploymentSettings DeploymentSettings
 
-@description('The diagnostic settings to use for this deployment.')
-param diagnosticSettings DiagnosticSettings?
+@description('The diagnostic settings to use for logging and metrics.')
+param diagnosticSettings DiagnosticSettings
 
 @description('The resource names for the resources to be created.')
 param resourceNames object
@@ -117,11 +117,6 @@ var appServiceDelegation = [
   }
 ]
 
-// Also for creating the virtual network, the routeTable setting for outbound connectivity
-var outboundRouteTable = !empty(routeTableId) ? {
-  id: routeTableId
-} : {}
-
 // Network security group rules
 var allowHttpsInbound = {
   name: 'Allow-HTTPS-Inbound'
@@ -167,6 +162,11 @@ var denyAllInbound = {
     sourcePortRange: '*'
   }
 }
+
+// Sets up the route table when there is one specified.
+var routeTableSettings = !empty(routeTableId) ? {
+  routeTable: { id: routeTableId }
+} : {}
 
 // ========================================================================
 // AZURE MODULES
@@ -308,13 +308,12 @@ module virtualNetwork '../core/network/virtual-network.bicep' = {
       }
       {
         name: resourceNames.spokeApiOutboundSubnet
-        properties: {
+        properties: union({
           addressPrefix: subnetPrefixes[2]
           delegations: appServiceDelegation
           networkSecurityGroup: { id: apiOutboundNSG.outputs.id }
           privateEndpointNetworkPolicies: 'Enabled'
-          routeTable: outboundRouteTable
-        }
+        }, routeTableSettings)
       }
       {
         name: resourceNames.spokeWebInboundSubnet
@@ -326,13 +325,12 @@ module virtualNetwork '../core/network/virtual-network.bicep' = {
       }
       {
         name: resourceNames.spokeWebOutboundSubnet
-        properties: {
+        properties: union({
           addressPrefix: subnetPrefixes[4]
           delegations: appServiceDelegation
           networkSecurityGroup: { id: webOutboundNSG.outputs.id }
           privateEndpointNetworkPolicies: 'Enabled'
-          routeTable: outboundRouteTable
-        }
+        }, routeTableSettings)
       }
     ]
   }

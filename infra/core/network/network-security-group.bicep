@@ -35,8 +35,8 @@ type DiagnosticSettings = {
 // PARAMETERS
 // ========================================================================
 
-@description('If using network isolation, the network isolation settings to use.')
-param diagnosticSettings DiagnosticSettings?
+@description('The diagnostic settings to use for logging and metrics.')
+param diagnosticSettings DiagnosticSettings
 
 @description('The Azure region for the resource.')
 param location string
