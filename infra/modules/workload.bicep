@@ -211,7 +211,7 @@ module sqlDatabase '../core/database/sql-database.bicep' = {
 
     // Settings
     diagnosticSettings: diagnosticSettings
-    dtuCapacity: deploymentSettings.isNetworkIsolated ? 125: 10
+    dtuCapacity: deploymentSettings.isProduction ? 125 : 10
     privateEndpointSettings: deploymentSettings.isNetworkIsolated ? {
       name: resourceNames.sqlDatabasePrivateEndpoint
       resourceGroupName: resourceNames.spokeResourceGroup
