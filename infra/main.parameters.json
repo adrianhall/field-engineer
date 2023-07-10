@@ -3,7 +3,7 @@
     "contentVersion": "1.0.0.0",
     "parameters": {
         "differentiator": {
-            "value": "{$AZURE_CI_DIFFERENTIATOR=none}"
+            "value": "${AZURE_CI_DIFFERENTIATOR=none}"
         },
         "environmentName": {
             "value": "${AZURE_ENV_NAME}"

@@ -196,16 +196,16 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
 
 module privateEndpoint '../network/private-endpoint.bicep' = if (privateEndpointSettings != null) {
   name: '${name}-private-endpoint'
-  scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
+  scope: resourceGroup(privateEndpointSettings != null ? privateEndpointSettings!.resourceGroupName : resourceGroup().name)
   params: {
-    name: privateEndpointSettings!.name
+    name: privateEndpointSettings != null ? privateEndpointSettings!.name : 'pep-${name}'
     location: location
     tags: tags
 
     // Dependencies
     linkServiceId: appService.id
     linkServiceName: appService.name
-    subnetId: privateEndpointSettings!.subnetId
+    subnetId: privateEndpointSettings != null ? privateEndpointSettings!.subnetId : ''
 
     // Settings
     dnsZoneName: 'privatelink.azurewebsites.net'
