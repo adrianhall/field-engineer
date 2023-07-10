@@ -9,17 +9,10 @@ var builder = WebApplication.CreateBuilder(args);
  *
  * SET UP CONFIGURATION
  */
-var appConfigurationUri = builder.Configuration["FieldEngineer:AppConfiguration:Endpoint"];
 var keyVaultUri = builder.Configuration["FieldEngineer:KeyVault:Uri"];
-
-if (!string.IsNullOrEmpty(appConfigurationUri) && !string.IsNullOrEmpty(keyVaultUri))
+if (!string.IsNullOrEmpty(keyVaultUri))
 {
-    builder.Configuration.AddAzureAppConfiguration(options =>
-    {
-        options
-            .Connect(new Uri(appConfigurationUri), new DefaultAzureCredential())
-            .ConfigureKeyVault(kv => kv.SetCredential(new DefaultAzureCredential()));
-    });
+    builder.Configuration.AddAzureKeyVault(new Uri(keyVaultUri), new DefaultAzureCredential());
 }
 
 /*
@@ -50,7 +43,7 @@ if (builder.Environment.IsDevelopment())
 var connectionString = builder.Configuration["FieldEngineer:Sql:ConnectionString"];
 if (!string.IsNullOrEmpty(connectionString))
 {
-    builder.Services.AddDbContextPool<AppDbContext>(options =>
+    builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseSqlServer(connectionString, sqlOptions => sqlOptions.EnableRetryOnFailure())
     );
 }
@@ -79,7 +72,8 @@ var app = builder.Build();
  */
 if (app.Environment.IsDevelopment())
 {
-    var dbContext = app.Services.GetRequiredService<AppDbContext>();
+    using var scope = app.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetService<AppDbContext>();
     if (dbContext is IDatabaseInitializer dbInitializer)
     {
         await dbInitializer.InitializeDatabaseAsync();
