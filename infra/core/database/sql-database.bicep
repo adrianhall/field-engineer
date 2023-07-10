@@ -32,10 +32,10 @@ type DiagnosticSettings = {
 @description('Type describing the private endpoint settings.')
 type PrivateEndpointSettings = {
   @description('The name of the private endpoint resource.  By default, this uses a prefix of \'pe-\' followed by the name of the resource.')
-  name: string?
+  name: string
 
   @description('The name of the resource group to hold the private endpoint.  By default, this uses the same resource group as the resource.')
-  resourceGroupName: string?
+  resourceGroupName: string
 
   @description('The ID of the subnet to link the private endpoint to.')
   subnetId: string
@@ -86,12 +86,6 @@ param zoneRedundant bool = false
 // VARIABLES
 // ========================================================================
 
-var actualPrivateEndpointSettings = union(privateEndpointSettings ?? {}, {
-  name: 'pe-${name}'
-  resourceGroupName: resourceGroup().name
-  subnetId: ''
-})
-
 var logCategories = [
   'SQLSecurityAuditEvents'
   'DevOpsOperationsAudit'
@@ -132,18 +126,18 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2021-11-01' = {
   }
 }
 
-module privateEndpoint '../network/private-endpoint.bicep' = if (!empty(actualPrivateEndpointSettings.subnetId)) {
+module privateEndpoint '../network/private-endpoint.bicep' = if (privateEndpointSettings != null) {
   name: '${name}-private-endpoint'
-  scope: resourceGroup(actualPrivateEndpointSettings.resourceGroupName)
+  scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
   params: {
-    name: actualPrivateEndpointSettings.name
+    name: privateEndpointSettings!.name
     location: location
     tags: tags
 
     // Dependencies
     linkServiceId: sqlServer.id
     linkServiceName: '${sqlServer.name}/${sqlDatabase.name}'
-    subnetId: actualPrivateEndpointSettings.subnetId
+    subnetId: privateEndpointSettings!.subnetId
 
     // Settings
     dnsZoneName: 'privatelink${az.environment().suffixes.sqlServerHostname}'

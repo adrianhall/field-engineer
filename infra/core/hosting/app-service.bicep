@@ -32,10 +32,10 @@ type DiagnosticSettings = {
 @description('Type describing the private endpoint settings.')
 type PrivateEndpointSettings = {
   @description('The name of the private endpoint resource.  By default, this uses a prefix of \'pe-\' followed by the name of the resource.')
-  name: string?
+  name: string
 
   @description('The name of the resource group to hold the private endpoint.  By default, this uses the same resource group as the resource.')
-  resourceGroupName: string?
+  resourceGroupName: string
 
   @description('The ID of the subnet to link the private endpoint to.')
   subnetId: string
@@ -102,12 +102,6 @@ var identity = !empty(managedIdentityId) ? {
 } : {
   type: 'SystemAssigned'
 }
-
-var actualPrivateEndpointSettings = union(privateEndpointSettings ?? {}, {
-  name: 'pe-${name}'
-  resourceGroupName: resourceGroup().name
-  subnetId: ''
-})
 
 var logCategories = [
   'AppServiceAppLogs'
@@ -200,18 +194,18 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
   }
 }
 
-module privateEndpoint '../network/private-endpoint.bicep' = if (!empty(actualPrivateEndpointSettings.subnetId)) {
+module privateEndpoint '../network/private-endpoint.bicep' = if (privateEndpointSettings != null) {
   name: '${name}-private-endpoint'
-  scope: resourceGroup(actualPrivateEndpointSettings.resourceGroupName)
+  scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
   params: {
-    name: actualPrivateEndpointSettings.name
+    name: privateEndpointSettings!.name
     location: location
     tags: tags
 
     // Dependencies
     linkServiceId: appService.id
     linkServiceName: appService.name
-    subnetId: actualPrivateEndpointSettings.subnetId
+    subnetId: privateEndpointSettings!.subnetId
 
     // Settings
     dnsZoneName: 'privatelink.azurewebsites.net'

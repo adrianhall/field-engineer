@@ -43,11 +43,11 @@ type DiagnosticSettings = {
 // From: infra/types/PrivateEndpointSettings.bicep
 @description('Type describing the private endpoint settings.')
 type PrivateEndpointSettings = {
-  @description('The name of the private endpoint resource.  By default, this uses a prefix of \'pe-\' followed by the name of the resource.')
-  name: string?
+  @description('The name of the private endpoint resource.')
+  name: string
 
-  @description('The name of the resource group to hold the private endpoint.  By default, this uses the same resource group as the resource.')
-  resourceGroupName: string?
+  @description('The name of the resource group to hold the private endpoint.')
+  resourceGroupName: string
 
   @description('The ID of the subnet to link the private endpoint to.')
   subnetId: string
@@ -100,13 +100,6 @@ var vaultAdministratorRoleId = '00482a5a-887f-4fb3-b363-3b7fe8e74483'
 @description('Built in \'Key Vault Secrets User\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
 var vaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
 
-
-var actualPrivateEndpointSettings = union(privateEndpointSettings ?? {}, {
-  name: 'pe-${name}'
-  resourceGroupName: resourceGroup().name
-  subnetId: ''
-})
-
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
@@ -146,18 +139,18 @@ resource grantSecretsUserAccess 'Microsoft.Authorization/roleAssignments@2022-04
   }
 }]
 
-module privateEndpoint '../network/private-endpoint.bicep' = if (!empty(actualPrivateEndpointSettings.subnetId)) {
+module privateEndpoint '../network/private-endpoint.bicep' = if (privateEndpointSettings != null) {
   name: '${name}-private-endpoint'
-  scope: resourceGroup(actualPrivateEndpointSettings.resourceGroupName)
+  scope: resourceGroup(privateEndpointSettings!.resourceGroupName)
   params: {
-    name: actualPrivateEndpointSettings.name
+    name: privateEndpointSettings!.name
     location: location
     tags: tags
 
     // Dependencies
     linkServiceId: keyVault.id
     linkServiceName: keyVault.name
-    subnetId: actualPrivateEndpointSettings.subnetId
+    subnetId: privateEndpointSettings!.subnetId
 
     // Settings
     dnsZoneName: 'privatelink.vaultcore.azure.net'
