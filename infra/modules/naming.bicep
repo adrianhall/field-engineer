@@ -52,6 +52,9 @@ type DeploymentSettings = {
 @description('The global deployment settings')
 param deploymentSettings DeploymentSettings
 
+@description('A differentiator for the environment.  Set this to a build number or date to ensure that the resource groups and resources are unique.')
+param differentiator string = ''
+
 @description('The overrides for the naming scheme.  Load this from the naming.overrides.jsonc file.')
 param overrides object = {}
 
@@ -61,10 +64,11 @@ param overrides object = {}
 
 // A unique token that is used as a differentiator for all resources.  All resources within the
 // same deployment will have the same token.
-var resourceToken = uniqueString(subscription().id, deploymentSettings.name, deploymentSettings.stage, deploymentSettings.location)
+var resourceToken = uniqueString(subscription().id, deploymentSettings.name, deploymentSettings.stage, deploymentSettings.location, differentiator)
 
 // The prefix for resource groups
-var resourceGroupPrefix = 'rg-${deploymentSettings.name}-${deploymentSettings.stage}-${deploymentSettings.location}'
+var diffPrefix = !empty(differentiator) ? '-${differentiator}' : ''
+var resourceGroupPrefix = 'rg-${deploymentSettings.name}-${deploymentSettings.stage}-${deploymentSettings.location}${diffPrefix}'
 
 // The list of resource names that are used in the deployment.  The default
 // names use Cloud Adoption Framework abbreviations.

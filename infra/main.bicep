@@ -57,6 +57,11 @@ param administratorUsername string = 'azureadmin'
 ** system.
 */
 
+// A differentiator for the environment.  This is used in CI/CD testing to ensure
+// that each environment is unique.
+@description('A differentiator for the environment.  Set this to a build number or date to ensure that the resource groups and resources are unique.')
+param differentiator string = 'none'
+
 // Environment type - dev or prod; affects sizing and what else is deployed alongside.
 @allowed([ 'dev', 'prod' ])
 @description('The set of pricing SKUs to choose for resources.  \'dev\' uses cheaper SKUs by avoiding features that are unnecessary for writing code.')
@@ -136,6 +141,7 @@ module naming './modules/naming.bicep' = {
   name: '${prefix}-naming'
   params: {
     deploymentSettings: deploymentSettings
+    differentiator: differentiator != 'none' ? differentiator : ''
     overrides: loadJsonContent('./naming.overrides.jsonc')
   }
 }
