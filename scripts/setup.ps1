@@ -141,6 +141,25 @@ if ($Production -and $Development) {
 
 Write-Host "Field Engineer Application Setup" -ForegroundColor Yellow -BackgroundColor Black
 
+$defaultEmailAddress = (Get-AzContext).Account.Id
+if (!$NoPrompt) {
+    $emailAddr = Read-Host -Prompt "`nWhat is your email address? [default: $defaultEmailAddress]"
+    if ($emailAddr -eq "") {
+        $emailAddr = $defaultEmailAddress
+    }
+}
+
+$defaultName = (Get-AzAdUser -UserPrincipalName $emailAddr).DisplayName
+if (!$NoPrompt) {
+    $ownerName = Read-Host -Prompt "`nWhat is your name? [default: $defaultName]"
+    if ($ownerName -eq "") {
+        $ownerName = $defaultName
+    }
+    if ($ownerName -eq "") {
+        $ownerName = $emailAddr
+    }
+}
+
 $currentDate = Get-Date -Format "yyyyMMddHHmm"
 $defaultName = "fe-$currentDate"
 $environmentName = $defaultName
@@ -204,6 +223,8 @@ if ($CommonAppServicePlan) {
 }
 
 Write-Host "`nProposed settings:" -ForegroundColor Yellow
+Write-Host "`tOwner name: $ownerName"
+Write-Host "`tEmail address: $emailAddr"
 Write-Host "`tEnvironment name: $environmentName"
 Write-Host "`tEnvironment type: $environmentType"
 Write-Host "`tNetwork isolation: $networkIsolation"
@@ -222,8 +243,10 @@ if (!$NoPrompt) {
 azd env new $environmentName
 azd env set AZURE_ENV_TYPE $environmentType
 azd env set NETWORK_ISOLATION $(if ($networkIsolation) { "true" } else { "false" })
-azd env set DEPLOY_HUB_NETWORK $(if ($networkIsolation) { "true" } else { "false" })
-azd env set COMMON_APP_SERVICE_PLAN $(if ($networkIsolation) { "true" } else { "false" })
+azd env set DEPLOY_HUB_NETWORK $(if ($deployHubNetwork) { "true" } else { "false" })
+azd env set COMMON_APP_SERVICE_PLAN $(if ($casp) { "true" } else { "false" })
+azd env set OWNER_EMAIL $emailAddr
+azd env set OWNER_NAME "$ownerName"
 
 if ($NoPrompt) {
     azd provision --no-prompt
