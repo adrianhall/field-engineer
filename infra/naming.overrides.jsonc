@@ -24,6 +24,8 @@
   // "spokeApiInboundNSG": "",
   // "spokeApiOutboundSubnet": "",
   // "spokeApiOutboundNSG": "",
+  // "spokeDevopsSubnet": "",
+  // "spokeDeploymentSubnet": "",
   // "spokeResourceGroup": "",
   // "spokeStorageNSG": "",
   // "spokeStorageSubnet": "",

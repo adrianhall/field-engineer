@@ -95,6 +95,8 @@ var defaultResourceNames = {
   spokeApiInboundNSG: 'nsg-api-in-${resourceToken}'
   spokeApiOutboundSubnet: 'API-Outbound'
   spokeApiOutboundNSG: 'nsg-api-out-${resourceToken}'
+  spokeDevopsSubnet: 'DevopsBuildAgents'
+  spokeDeploymentSubnet: 'Deployment'
   spokeResourceGroup: '${resourceGroupPrefix}-spoke'
   spokeStorageNSG: 'nsg-storage-${resourceToken}'
   spokeStorageSubnet: 'Storage'

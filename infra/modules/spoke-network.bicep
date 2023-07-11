@@ -168,6 +168,22 @@ var routeTableSettings = !empty(routeTableId) ? {
   routeTable: { id: routeTableId }
 } : {}
 
+var devopsSubnet = [{
+  name: resourceNames.spokeDevopsSubnet
+  properties: union({
+    addressPrefix: subnetPrefixes[5]
+    privateEndpointNetworkPolicies: 'Disabled'
+  }, routeTableSettings)
+}]
+
+var deploymentSubnet = [{
+  name: resourceNames.spokeDeploymentSubnet
+  properties: union({
+    addressPrefix: subnetPrefixes[6]
+    privateEndpointNetworkPolicies: 'Disabled'
+  }, routeTableSettings)
+}]
+
 // ========================================================================
 // AZURE MODULES
 // ========================================================================
@@ -289,7 +305,7 @@ module virtualNetwork '../core/network/virtual-network.bicep' = {
     // Settings
     addressPrefix: addressPrefix
     diagnosticSettings: diagnosticSettings
-    subnets: [
+    subnets: union([
       {
         name: resourceNames.spokeStorageSubnet
         properties: {
@@ -331,8 +347,7 @@ module virtualNetwork '../core/network/virtual-network.bicep' = {
           networkSecurityGroup: { id: webOutboundNSG.outputs.id }
           privateEndpointNetworkPolicies: 'Enabled'
         }, routeTableSettings)
-      }
-    ]
+      }], devopsSubnet, deploymentSubnet)
   }
 }
 
