@@ -1,113 +1,162 @@
 <#
 .SYNOPSIS
-    Cleans up the project by removing the infrastructure and environment artifacts
+    Cleans up the Azure resources for the Field Engineer application for a given azd environment.
+.DESCRIPTION
+    There are times that azd down doesn't work well.  At time of writing, this includes complex
+    environments with multiple resource groups and networking.  To remedy this, this script removes
+    the Azure resources in the correct order.
+
+    If you do not provide any parameters, this script will clean up the most current azd environment.
+.PARAMETER Prefix
+    The prefix of the Azure environment to clean up.  Provide this OR the ResourceGroup parameter to
+    clean up a specific environment.
+.PARAMETER ResourceGroup
+    The name of the workload resource group to clean up.  Provide this OR the Prefix parameter to clean
+    up a specific environment.
+.PARAMETER SpokeResourceGroup
+    If you provide the ResourceGroup parameter and are using network isolation, then you must also provide
+    the SpokeResourceGroup if it is a different resource group.  If you don't, then the spoke network will
+    not be cleaned up.
+.PARAMETER HubResourceGroup
+    If you provide the ResourceGroup parameter and have deployed a hub network, then you must also provide
+    the HubResourceGroup if it is a different resource group.  If you don't, then the hub network will not
+    be cleaned up.
 #>
 
-$azdConfig = azd env get-values -o json | ConvertFrom-Json -Depth 9 -AsHashtable
+Param(
+    [Parameter(Mandatory = $false)][string]$Prefix,
+    [Parameter(Mandatory = $false)][string]$ResourceGroup,
+    [Parameter(Mandatory = $false)][string]$SpokeResourceGroup,
+    [Parameter(Mandatory = $false)][string]$HubResourceGroup
+)
 
-$environmentName = $azdConfig['AZURE_ENV_NAME']
-$environmentType = $azdConfig['AZURE_ENV_TYPE'] ?? 'dev'
-$location = $azdConfig['AZURE_LOCATION']
-$deployHubNetwork = $azdConfig['DEPLOY_HUB_NETWORK']
-$networkIsolation = $azdConfig['NETWORK_ISOLATION']
+# Default Settings
+$CleanupAzureDirectory = $false
+$rgPrefix = ""
+$rgWorkload = ""
+$rgSpoke = ""
+$rgHub = ""
 
-if ($networkIsolation -eq 'auto') {
-    $networkIsolation = $environmentType -eq 'prod' ? 'true' : 'false'
+if ($Prefix) {
+    $rgPrefix = $Prefix
+    $rgWorkload = "$rgPrefix-workload"
+    $rgSpoke = "$rgPrefix-spoke"
+    $rgHub = "$rgPrefix-hub"
+} else {
+    if (!$ResourceGroup) {
+        if (!(Test-Path -Path ./.azure -PathType Container)) {
+            "No .azure directory found and no resource group information provided - cannot clean up"
+            exit 1
+        }
+        $azdConfig = azd env get-values -o json | ConvertFrom-Json -Depth 9 -AsHashtable
+        $environmentName = $azdConfig['AZURE_ENV_NAME']
+        $environmentType = $azdConfig['AZURE_ENV_TYPE'] ?? 'dev'
+        $location = $azdConfig['AZURE_LOCATION']
+        $rgPrefix = "rg-$environmentName-$environmentType-$location"
+        $rgWorkload = "$rgPrefix-workload"
+        $rgSpoke = "$rgPrefix-spoke"
+        $rgHub = "$rgPrefix-hub"
+        $CleanupAzureDirectory = $true
+    } else {
+        $rgWorkload = $ResourceGroup
+        $rgPrefix = $resourceGroup.Substring(0, $resourceGroup.IndexOf('-workload'))
+    }
 }
 
-if ($deployHubNetwork -eq 'auto') {
-    $deployHubNetwork = $networkIsolation -eq 'true' -and $environmentType -ne 'prod' ? 'true' : 'false'
+if ($SpokeResourceGroup) {
+    $rgSpoke = $SpokeResourceGroup
+} elseif ($rgSpoke -eq '') {
+    $rgSpoke = "$rgPrefix-spoke"
+}
+if ($HubResourceGroup) {
+    $rgHub = $HubResourceGroup
+} elseif ($rgHub -eq '') {
+    $rgHub = "$rgPrefix-hub"
 }
 
-$rgPrefix = "rg-$environmentName-$environmentType-$location"
+function Test-ResourceGroupExists($resourceGroupName) {
+    $resourceGroup = Get-AzResourceGroup -Name $resourceGroupName -ErrorAction SilentlyContinue
+    return $null -ne $resourceGroup
+}
 
-$workloadResourceGroup = "$rgPrefix-workload"
-$spokeResourceGroup = "$rgPrefix-spoke"
-$hubResourceGroup = "$rgPrefix-hub"
+function Remove-ConsumptionBudgetForResourceGroup($resourceGroupName) {
+    Get-AzConsumptionBudget -ResourceGroupName $resourceGroupName
+    | Foreach-Object {
+        "`tRemoving $resourceGroupName::$($_.Name)" | Write-Output
+        Remove-AzConsumptionBudget -Name $_.Name -ResourceGroupName $_.ResourceGroupName
+    }
+}
 
-function Remove-DiagnosticSettingsForResourceGroup($resourceGroup) {
-    "===> Deleting diagnostic settings for resources in $resourceGroup" | Write-Output
-    Get-AzResource -ResourceGroupName $resourceGroup
+function Remove-DiagnosticSettingsForResourceGroup($resourceGroupName) {
+    Get-AzResource -ResourceGroupName $resourceGroupName
     | Foreach-Object {
         $resourceName = $_.Name
         $resourceId = $_.ResourceId
         Get-AzDiagnosticSetting -ResourceId $resourceId -ErrorAction SilentlyContinue | Foreach-Object {
-            "`tRemoving diagnostic settings for $resourceName" | Write-Output
+            "`tRemoving $resourceGroupName::$resourceName::$($_.Name)" | Write-Output
             Remove-AzDiagnosticSetting -ResourceId $resourceId -Name $_.Name 
         }
     }
 }
 
-"===> Cleaning up environment $rgPrefix" | Write-Output
-"`tWorkload resource group: $workloadResourceGroup" | Write-Output
-if ($networkIsolation -eq 'true') {
-    "`tSpoke resource group: $spokeResourceGroup" | Write-Output
-}
-if ($deployHubNetwork -eq 'true') {
-    "`tHub resource group: $hubResourceGroup" | Write-Output
-}
-
-# Delete the private endpoints first.
-if ($networkIsolation -eq 'true') {
-    "===> Deleting private endpoints" | Write-Output
-    Get-AzPrivateEndpoint
-    | Where-Object { $_.ResourceGroupName -eq $spokeResourceGroup -or $_.ResourceGroupName -eq $hubResourceGroup -or $_.ResourceGroupName -eq $workloadResourceGroup }
+function Remove-PrivateEndpointsForResourceGroup($resourceGroupName) {
+    Get-AzPrivateEndpoint -ResourceGroupName $resourceGroupName
     | Foreach-Object {
-        "`tRemoving $($_.Name)" | Write-Output
+        "`tRemoving $resourceGroupName::$($_.Name)" | Write-Output
         Remove-AzPrivateEndpoint -Name $_.Name -ResourceGroupName $_.ResourceGroupName -Force
     }
 }
 
-# Delete the budget
-"===> Deleting budget(s) for workload" | Write-Output
-Get-AzConsumptionBudget -ResourceGroupName $workloadResourceGroup
-| Foreach-Object {
-    "`tRemoving $($_.Name)" | Write-Output
-    Remove-AzConsumptionBudget -Name $_.Name -ResourceGroupName $_.ResourceGroupName
+"`nCleaning up environment for working $ResourceGroup" | Write-Output
+
+# Get the list of resource groups to deal with
+$resourceGroups = [System.Collections.ArrayList]@()
+if (Test-ResourceGroupExists -ResourceGroupName $rgWorkload) {
+    "`tFound workload resource group: $rgWorkload" | Write-Output
+    $resourceGroups.Add($rgWorkload)
+}
+if (Test-ResourceGroupExists -ResourceGroupName $rgSpoke) {
+    "`tFound spoke resource group: $rgSpoke" | Write-Output
+    $resourceGroups.Add($rgSpoke)
+}
+if (Test-ResourceGroupExists -ResourceGroupName $rgHub) {
+    "`tFound hub resource group: $rgHub" | Write-Output
+    $resourceGroups.Add($rgHub)
 }
 
-# Delete the diagnostic settings for the workload
-Remove-DiagnosticSettingsForResourceGroup -ResourceGroup $workloadResourceGroup
-
-# Delete the workload resource group
-"===> Deleting resource group $workloadResourceGroup" | Write-Output
-Remove-AzResourceGroup -Name $workloadResourceGroup -Force
-
-if ($networkIsolation -eq 'true') {
-    # Delete the diagnostic settings for the spoke
-    Remove-DiagnosticSettingsForResourceGroup -ResourceGroup $spokeResourceGroup
-
-    # Delete the spoke VNET (otherwise, we have a timing issue with NSGs)
-    "===> Deleting spoke VNET" | Write-Output
-    Get-AzVirtualNetwork -ResourceGroupName $spokeResourceGroup | Foreach-Object {
-        "`tRemoving $($_.Name)" | Write-Output
-        Remove-AzVirtualNetwork -Name $_.Name -ResourceGroupName $_.ResourceGroupName -Force
-    }
-
-    # Delete the spoke resource group
-    "===> Deleting resource group $spokeResourceGroup" | Write-Output
-    Remove-AzResourceGroup -Name $spokeResourceGroup -Force
+"`nRemoving resources from resource groups..." | Write-Output
+"> Private Endpoints:" | Write-Output
+foreach ($resourceGroupName in $resourceGroups) {
+    Remove-PrivateEndpointsForResourceGroup -ResourceGroupName $resourceGroupName
 }
 
-if ($deployHubNetwork -eq 'true') {
-    # Delete the budget
-    "===> Deleting budget(s) for hub" | Write-Output
-    Get-AzConsumptionBudget -ResourceGroupName $hubResourceGroup
-    | Foreach-Object {
-        "`tRemoving $($_.Name)" | Write-Output
-        Remove-AzConsumptionBudget -Name $_.Name -ResourceGroupName $_.ResourceGroupName
-    }
-
-    # Delete the diagnostic settings for the hub
-    Remove-DiagnosticSettingsForResourceGroup -ResourceGroup $hubResourceGroup
-
-    # Delete the hub resource group
-    "===> Deleting resource group $hubResourceGroup" | Write-Output
-    Remove-AzResourceGroup -Name $hubResourceGroup -Force
+"> Budgets:" | Write-Output
+foreach ($resourceGroupName in $resourceGroups) {
+    Remove-ConsumptionBudgetForResourceGroup -ResourceGroupName $resourceGroupName
 }
 
+"> Diagnostic Settings:" | Write-Output
+foreach ($resourceGroupName in $resourceGroups) {
+    Remove-DiagnosticSettingsForResourceGroup -ResourceGroupName $resourceGroupName
+}
 
-"===> Removing .azure directory" | Write-Output
-Remove-Item -Recurse -Force -Path .\.azure
+"`nRemoving resource groups in order..." | Write-Output
+if (Test-ResourceGroupExists -ResourceGroupName $rgWorkload) {
+    "`tRemoving $rgWorkload" | Write-Output
+    Remove-AzResourceGroup -Name $rgWorkload -Force
+}
+if (Test-ResourceGroupExists -ResourceGroupName $rgSpoke) {
+    "`tRemoving $rgSpoke" | Write-Output
+    Remove-AzResourceGroup -Name $rgSpoke -Force
+}
+if (Test-ResourceGroupExists -resourceGroupName $rgHub) {
+    "`tRemoving $rgHub" | Write-Output
+    Remove-AzResourceGroup -Name $rgHub -Force
+}
 
-"`n`nComplete!  Ensure you create a new azd environment before attempting to re-deploy.`n`n" | Write-Output
+if ($CleanupAzureDirectory -eq $true -and (Test-Path -Path ./.azure -PathType Container)) {
+    "Cleaning up Azure Developer CLI state files." | Write-Output
+    Remove-Item -Path ./.azure -Recurse -Force
+}
+
+"`nCleanup complete." | Write-Output
