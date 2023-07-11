@@ -21,13 +21,16 @@
     If you provide the ResourceGroup parameter and have deployed a hub network, then you must also provide
     the HubResourceGroup if it is a different resource group.  If you don't, then the hub network will not
     be cleaned up.
+.PARAMETER AsJob
+    Use The -AsJob parameter to delete the resource groups in the background.
 #>
 
 Param(
     [Parameter(Mandatory = $false)][string]$Prefix,
     [Parameter(Mandatory = $false)][string]$ResourceGroup,
     [Parameter(Mandatory = $false)][string]$SpokeResourceGroup,
-    [Parameter(Mandatory = $false)][string]$HubResourceGroup
+    [Parameter(Mandatory = $false)][string]$HubResourceGroup,
+    [switch]$AsJob = $false
 )
 
 # Default Settings
@@ -107,21 +110,32 @@ function Remove-PrivateEndpointsForResourceGroup($resourceGroupName) {
     }
 }
 
-"`nCleaning up environment for working $ResourceGroup" | Write-Output
+function Remove-ResourceGroupFromAzure($resourceGroupName, $asJob) {
+    if (Test-ResourceGroupExists -ResourceGroupName $resourceGroupName) {
+        "`tRemoving $resourceGroupName" | Write-Output
+        if ($asJob) {
+            Remove-AzResourceGroup -Name $resourceGroupName -Force -AsJob
+        } else {
+            Remove-AzResourceGroup -Name $resourceGroupName -Force
+        }
+    }
+}
+
+"`nCleaning up environment for workload $rgWorkload" | Write-Output
 
 # Get the list of resource groups to deal with
 $resourceGroups = [System.Collections.ArrayList]@()
 if (Test-ResourceGroupExists -ResourceGroupName $rgWorkload) {
     "`tFound workload resource group: $rgWorkload" | Write-Output
-    $resourceGroups.Add($rgWorkload)
+    $resourceGroups.Add($rgWorkload) | Out-Null
 }
 if (Test-ResourceGroupExists -ResourceGroupName $rgSpoke) {
     "`tFound spoke resource group: $rgSpoke" | Write-Output
-    $resourceGroups.Add($rgSpoke)
+    $resourceGroups.Add($rgSpoke) | Out-Null
 }
 if (Test-ResourceGroupExists -ResourceGroupName $rgHub) {
     "`tFound hub resource group: $rgHub" | Write-Output
-    $resourceGroups.Add($rgHub)
+    $resourceGroups.Add($rgHub) | Out-Null
 }
 
 "`nRemoving resources from resource groups..." | Write-Output
@@ -141,18 +155,9 @@ foreach ($resourceGroupName in $resourceGroups) {
 }
 
 "`nRemoving resource groups in order..." | Write-Output
-if (Test-ResourceGroupExists -ResourceGroupName $rgWorkload) {
-    "`tRemoving $rgWorkload" | Write-Output
-    Remove-AzResourceGroup -Name $rgWorkload -Force
-}
-if (Test-ResourceGroupExists -ResourceGroupName $rgSpoke) {
-    "`tRemoving $rgSpoke" | Write-Output
-    Remove-AzResourceGroup -Name $rgSpoke -Force
-}
-if (Test-ResourceGroupExists -resourceGroupName $rgHub) {
-    "`tRemoving $rgHub" | Write-Output
-    Remove-AzResourceGroup -Name $rgHub -Force
-}
+Remove-ResourceGroupFromAzure -ResourceGroupName $rgWorkload -AsJob:$AsJob
+Remove-ResourceGroupFromAzure -ResourceGroupName $rgSpoke -AsJob:$AsJob
+Remove-ResourceGroupFromAzure -ResourceGroupName $rgHub -AsJob:$AsJob
 
 if ($CleanupAzureDirectory -eq $true -and (Test-Path -Path ./.azure -PathType Container)) {
     "Cleaning up Azure Developer CLI state files." | Write-Output
