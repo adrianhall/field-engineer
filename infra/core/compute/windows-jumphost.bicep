@@ -133,7 +133,7 @@ resource networkInterface 'Microsoft.Network/networkInterfaces@2022-11-01' = {
   }
 }
 
-resource jumphost 'Microsoft.Compute/virtualMachines@2023-03-01' = {
+resource virtualMachine 'Microsoft.Compute/virtualMachines@2023-03-01' = {
   name: name
   location: location
   tags: tags
@@ -193,7 +193,7 @@ resource jumphost 'Microsoft.Compute/virtualMachines@2023-03-01' = {
 resource aadLoginExtension 'Microsoft.Compute/virtualMachines/extensions@2023-03-01' = if (joinToAzureAd) {
   name: 'AADLoginForWindows'
   location: location
-  parent: jumphost
+  parent: virtualMachine
   properties: {
     publisher: 'Microsoft.Azure.ActiveDirectory'
     type: 'AADLoginForWindows'
@@ -205,7 +205,7 @@ resource aadLoginExtension 'Microsoft.Compute/virtualMachines/extensions@2023-03
 resource postDeploymentScript 'Microsoft.Compute/virtualMachines/extensions@2023-03-01' = {
   name: 'postDeploymentScript'
   location: location
-  parent: jumphost
+  parent: virtualMachine
   properties: {
     publisher: 'Microsoft.Compute'
     type: 'CustomScriptExtension'
@@ -224,7 +224,7 @@ resource postDeploymentScript 'Microsoft.Compute/virtualMachines/extensions@2023
 
 resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (diagnosticSettings != null && !empty(logAnalyticsWorkspaceId)) {
   name: '${name}-diagnostics'
-  scope: jumphost
+  scope: virtualMachine
   properties: {
     workspaceId: logAnalyticsWorkspaceId
     logs: []
@@ -242,8 +242,7 @@ resource diagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' 
 // OUTPUTS
 // ========================================================================
 
-output id string = jumphost.id
-output name string = jumphost.name
+output id string = virtualMachine.id
+output name string = virtualMachine.name
 
 output computer_name string = computerName!
-output principal_id string = jumphost.identity.principalId

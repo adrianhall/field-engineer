@@ -90,6 +90,9 @@ param routeTableId string = ''
 @description('The CIDR block to use for the address prefix of this virtual network.')
 param addressPrefix string = '10.0.16.0/20'
 
+@description('If true, create a subnet for Devops resources')
+param createDevopsSubnet bool = false
+
 @description('The list of private DNS zones to create in this virtual network.')
 param privateDnsZones array = [
   'privatelink.vaultcore.azure.net'
@@ -168,21 +171,21 @@ var routeTableSettings = !empty(routeTableId) ? {
   routeTable: { id: routeTableId }
 } : {}
 
-var devopsSubnet = [{
-  name: resourceNames.spokeDevopsSubnet
+var deploymentSubnet = [{
+  name: resourceNames.spokeDeploymentSubnet
   properties: union({
     addressPrefix: subnetPrefixes[5]
     privateEndpointNetworkPolicies: 'Disabled'
   }, routeTableSettings)
 }]
 
-var deploymentSubnet = [{
-  name: resourceNames.spokeDeploymentSubnet
+var devopsSubnet = createDevopsSubnet ? [{
+  name: resourceNames.spokeDevopsSubnet
   properties: union({
     addressPrefix: subnetPrefixes[6]
     privateEndpointNetworkPolicies: 'Disabled'
   }, routeTableSettings)
-}]
+}] : []
 
 // ========================================================================
 // AZURE MODULES
@@ -347,7 +350,7 @@ module virtualNetwork '../core/network/virtual-network.bicep' = {
           networkSecurityGroup: { id: webOutboundNSG.outputs.id }
           privateEndpointNetworkPolicies: 'Enabled'
         }, routeTableSettings)
-      }], devopsSubnet, deploymentSubnet)
+      }], deploymentSubnet, devopsSubnet)
   }
 }
 

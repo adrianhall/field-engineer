@@ -2,6 +2,15 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
+        "adoOrganizationUrl": {
+            "value": "${AZURE_DEVOPS_ORG_URL}"
+        },
+        "adoToken": {
+            "value": "${AZURE_DEVOPS_TOKEN}"
+        },
+        "clientIpAddress": {
+            "value": "${AZD_IP_ADDRESS}"
+        },
         "differentiator": {
             "value": "${AZURE_CI_DIFFERENTIATOR=none}"
         },
@@ -10,6 +19,12 @@
         },
         "environmentType": {
             "value": "${AZURE_ENV_TYPE=dev}"
+        },
+        "githubRepositoryUrl": {
+            "value": "${GITHUB_REPO}"
+        },
+        "githubToken": {
+            "value": "${GITHUB_TOKEN}"
         },
         "location": {
             "value": "${AZURE_LOCATION}"

@@ -3,6 +3,12 @@
 name: field-engineer
 metadata:
   template: field-engineer@0.0.1-beta
+hooks:
+  preprovision:
+    posix:
+      run: ./scripts/whatsmyip.sh
+    windows:
+      run: ./scripts/whatsmyip.ps1
 services:
   api:
     project: src/dotnet/FieldEngineer.Api

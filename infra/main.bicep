@@ -57,6 +57,25 @@ param administratorUsername string = 'azureadmin'
 ** system.
 */
 
+// Settings for setting up a build agent for Azure DevOps
+@description('The URL of the Azure DevOps organization.  If this and the adoToken is provided, then an Azure DevOps build agent will be deployed.')
+param adoOrganizationUrl string = ''
+
+@description('The access token for the Azure DevOps organization.  If this and the adoOrganizationUrl is provided, then an Azure DevOps build agent will be deployed.')
+param adoToken string = ''
+
+// Settings for setting up a build agent for GitHub Actions
+@description('The URL of the GitHub repository.  If this and the githubToken is provided, then a GitHub Actions build agent will be deployed.')
+param githubRepositoryUrl string = ''
+
+@description('The personal access token for the GitHub repository.  If this and the githubRepositoryUrl is provided, then a GitHub Actions build agent will be deployed.')
+param githubToken string = ''
+
+// The IP address for the current system.  This is used to set up the firewall
+// for Key Vault and SQL Server if in development mode.
+@description('The IP address of the current system.  This is used to set up the firewall for Key Vault and SQL Server if in development mode.')
+param clientIpAddress string = ''
+
 // A differentiator for the environment.  This is used in CI/CD testing to ensure
 // that each environment is unique.
 @description('A differentiator for the environment.  Set this to a build number or date to ensure that the resource groups and resources are unique.')
@@ -127,6 +146,18 @@ var diagnosticSettings = {
   enableLogs: true
   enableMetrics: true
 }
+
+var githubActionsSettings = (!empty(githubRepositoryUrl) && !empty(githubToken)) ? {
+  repositoryUrl: githubRepositoryUrl
+  token: githubToken
+} : null
+
+var azureDevopsSettings = (!empty(adoOrganizationUrl) && !empty(adoToken)) ? {
+  organizationUrl: adoOrganizationUrl
+  token: adoToken
+} : null
+
+var installBuildAgent = isNetworkIsolated && (azureDevopsSettings != null || githubActionsSettings != null)
 
 // ========================================================================
 // BICEP MODULES
@@ -236,6 +267,9 @@ module spokeNetwork './modules/spoke-network.bicep' = if (isNetworkIsolated) {
     // Dependencies
     logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
     routeTableId: willDeployHubNetwork ? hubNetwork.outputs.route_table_id : ''
+
+    // Settings
+    createDevopsSubnet: installBuildAgent
   }
   dependsOn: [
     resourceGroups
@@ -261,6 +295,9 @@ module peerVirtualNetworks './modules/peer-networks.bicep' = if (willDeployHubNe
   }
 }
 
+/*
+** Create the application resources.
+*/
 module workload './modules/workload.bicep' = {
   name: '${prefix}-workload'
   params: {
@@ -276,6 +313,7 @@ module workload './modules/workload.bicep' = {
     // Settings
     administratorPassword: administratorPassword
     administratorUsername: administratorUsername
+    clientIpAddress: clientIpAddress
     useCommonAppServicePlan: willDeployCommonAppServicePlan
   }
   dependsOn: [
@@ -283,6 +321,29 @@ module workload './modules/workload.bicep' = {
     spokeNetwork
   ]
 }
+
+/*
+** Create a build agent (only if network isolated and the relevant information has been provided)
+*/
+// module buildAgent './modules/build-agent.bicep' = if (installBuildAgent) {
+//   name: '${prefix}-build-agent'
+//   params: {
+//     deploymentSettings: deploymentSettings
+//     diagnosticSettings: diagnosticSettings
+//     resourceNames: naming.outputs.resourceNames
+
+//     // Dependencies
+//     logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
+//     managedIdentityId: workload.outputs.owner_managed_identity_id
+//     subnets: isNetworkIsolated ? spokeNetwork.outputs.subnets : {}
+
+//     // Settings
+//     administratorPassword: administratorPassword
+//     administratorUsername: administratorUsername
+//     azureDevopsSettings: azureDevopsSettings
+//     githubActionsSettings: githubActionsSettings
+//   }
+// }
 
 // TODO: Post provisioning configuration (database roles, etc.)
 
@@ -296,4 +357,9 @@ module workload './modules/workload.bicep' = {
 output bastion_hostname string = willDeployHubNetwork ? hubNetwork.outputs.bastion_hostname : ''
 output firewall_hostname string = willDeployHubNetwork ? hubNetwork.outputs.firewall_hostname : ''
 
+// Spoke resources
+output build_agent string = installBuildAgent ? buildAgent.outputs.build_agent_hostname : ''
+
 // Workload resources
+output service_api_endpoints string[] = workload.outputs.service_api_endpoints
+output service_web_endpoints string[] = workload.outputs.service_web_endpoints

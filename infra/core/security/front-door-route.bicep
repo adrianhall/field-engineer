@@ -57,9 +57,9 @@ var privateLinkOriginDetails = isPrivateLinkOrigin ? {
   requestMessage: 'Please approve the private link request'
 } : null
 
-// =====================================================================================================================
-//     AZURE RESOURCES
-// =====================================================================================================================
+// ========================================================================
+// AZURE RESOURCES
+// ========================================================================
 
 resource profile 'Microsoft.Cdn/profiles@2021-06-01' existing = {
   name: frontDoorProfileName
@@ -118,3 +118,9 @@ resource route 'Microsoft.Cdn/profiles/afdEndpoints/routes@2021-06-01' = {
     httpsRedirect: 'Enabled'
   }
 }
+
+// ========================================================================
+// OUTPUTS
+// ========================================================================
+
+output endpoint string = 'https://${endpoint.properties.hostName}${routePattern}'

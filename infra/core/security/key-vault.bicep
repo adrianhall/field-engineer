@@ -53,6 +53,11 @@ type PrivateEndpointSettings = {
   subnetId: string
 }
 
+type FirewallRules = {
+  @description('The list of IP address CIDR blocks to allow access from.')
+  allowedIpAddresses: string[]
+}
+
 // ========================================================================
 // PARAMETERS
 // ========================================================================
@@ -81,6 +86,10 @@ param logAnalyticsWorkspaceId string = ''
 @description('Whether or not public endpoint access is allowed for this server')
 param enablePublicNetworkAccess bool = true
 
+@description('The firewall rules to install on the Key Vault.')
+#disable-next-line no-unused-params
+param firewallRules FirewallRules?
+
 @description('The list of application identities to be granted owner access to the workload resources.')
 param ownerIdentities ApplicationIdentity[] = []
 
@@ -100,6 +109,14 @@ var vaultAdministratorRoleId = '00482a5a-887f-4fb3-b363-3b7fe8e74483'
 @description('Built in \'Key Vault Secrets User\' role ID: https://docs.microsoft.com/en-us/azure/role-based-access-control/built-in-roles')
 var vaultSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
 
+var networkAcls = firewallRules != null ? {
+  bypass: 'AzureServices'
+  defaultAction: 'Deny'
+  ipRules: map(firewallRules!.allowedIpAddresses, (ipAddr) => { value: ipAddr })
+} : {
+  bypass: 'None'
+}
+
 // ========================================================================
 // AZURE RESOURCES
 // ========================================================================
@@ -110,7 +127,8 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
   tags: tags
   properties: {
     enableRbacAuthorization: true
-    publicNetworkAccess: enablePublicNetworkAccess ? 'Enabled' : 'Disabled'
+    networkAcls: firewallRules != null ? networkAcls : { bypass: 'None' }
+    publicNetworkAccess: enablePublicNetworkAccess || firewallRules != null ? 'Enabled' : 'Disabled'
     sku: {
       family: 'A'
       name: 'standard'

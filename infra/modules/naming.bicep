@@ -108,6 +108,7 @@ var defaultResourceNames = {
 
   // Common resources - may be in hub or workload resource group
   applicationInsights: 'appi-${resourceToken}'
+  buildAgent: 'vm-buildagent-${resourceToken}'
   logAnalyticsWorkspace: 'log-${resourceToken}'
 
   // Workload resources
@@ -160,6 +161,8 @@ output resourceNames object = {
   spokeApiInboundNSG: contains(overrides, 'spokeApiInboundNSG') && !empty(overrides.spokeApiInboundNSG) ? overrides.spokeApiInboundNSG : defaultResourceNames.spokeApiInboundNSG
   spokeApiOutboundSubnet: contains(overrides, 'spokeApiOutboundSubnet') && !empty(overrides.spokeApiOutboundSubnet) ? overrides.spokeApiOutboundSubnet : defaultResourceNames.spokeApiOutboundSubnet
   spokeApiOutboundNSG: contains(overrides, 'spokeApiOutboundNSG') && !empty(overrides.spokeApiOutboundNSG) ? overrides.spokeApiOutboundNSG : defaultResourceNames.spokeApiOutboundNSG
+  spokeDevopsSubnet: contains(overrides, 'spokeDevopsSubnet') && !empty(overrides.spokeDevopsSubnet) ? overrides.spokeDevopsSubnet : defaultResourceNames.spokeDevopsSubnet
+  spokeDeploymentSubnet: contains(overrides, 'spokeDeploymentSubnet') && !empty(overrides.spokeDeploymentSubnet) ? overrides.spokeDeploymentSubnet : defaultResourceNames.spokeDeploymentSubnet
   spokeResourceGroup: contains(overrides, 'spokeResourceGroup') && !empty(overrides.spokeResourceGroup) ? overrides.spokeResourceGroup : defaultResourceNames.spokeResourceGroup
   spokeStorageNSG: contains(overrides, 'spokeStorageNSG') && !empty(overrides.spokeStorageNSG) ? overrides.spokeStorageNSG : defaultResourceNames.spokeStorageNSG
   spokeStorageSubnet: contains(overrides, 'spokeStorageSubnet') && !empty(overrides.spokeStorageSubnet) ? overrides.spokeStorageSubnet : defaultResourceNames.spokeStorageSubnet
@@ -171,6 +174,7 @@ output resourceNames object = {
 
   // Common services - may be in hub or workload resource group
   applicationInsights: contains(overrides, 'applicationInsights') && !empty(overrides.applicationInsights) ? overrides.applicationInsights : defaultResourceNames.applicationInsights
+  buildAgent: contains(overrides, 'buildAgent') && !empty(overrides.buildAgent) ? overrides.buildAgent : defaultResourceNames.buildAgent
   logAnalyticsWorkspace: contains(overrides, 'logAnalyticsWorkspace') && !empty(overrides.logAnalyticsWorkspace) ? overrides.logAnalyticsWorkspace : defaultResourceNames.logAnalyticsWorkspace
 
   // Workload resources

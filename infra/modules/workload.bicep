@@ -1,14 +1,11 @@
 targetScope = 'subscription'
 
 /*
-** Hub Network Infrastructure
+** Application Infrastructure
 ** Copyright (C) 2023 Microsoft, Inc.
 ** All Rights Reserved
 **
 ***************************************************************************
-**
-** The Hub Network consists of a virtual network that hosts resources that
-** are generally associated with a hub.
 */
 
 // ========================================================================
@@ -99,6 +96,9 @@ param administratorPassword string
 @description('The username for the administrator account on the SQL Server.')
 param administratorUsername string
 
+@description('The IP address of the current system.  This is used to set up the firewall for Key Vault and SQL Server if in development mode.')
+param clientIpAddress string = ''
+
 @description('If true, use a common App Service Plan.  If false, use a separate App Service Plan per App Service.')
 param useCommonAppServicePlan bool
 
@@ -119,6 +119,10 @@ var createSqlServer = resourceNames.sqlResourceGroup == resourceNames.resourceGr
 resource resourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' existing = {
   name: resourceNames.resourceGroup
 }
+
+// ========================================================================
+// NEW RESOURCES
+// ========================================================================
 
 /*
 ** Identities used by the application.
@@ -160,6 +164,9 @@ module keyVault '../core/security/key-vault.bicep' = {
     // Settings
     diagnosticSettings: diagnosticSettings
     enablePublicNetworkAccess: !deploymentSettings.isNetworkIsolated
+    firewallRules: !deploymentSettings.isProduction && !empty(clientIpAddress) ? {
+      allowedIpAddresses: [ '${clientIpAddress}/32' ]
+    } : null
     ownerIdentities: [
       { principalId: deploymentSettings.principalId, principalType: deploymentSettings.principalType }
       { principalId: ownerManagedIdentity.outputs.principal_id, principalType: 'ServicePrincipal' }
@@ -408,3 +415,11 @@ module approveFrontDoorPrivateLinks '../core/security/front-door-route-approval.
     apiFrontDoorRoute
   ]
 }
+
+// ========================================================================
+// OUTPUTS
+// ========================================================================
+
+output owner_managed_identity_id string = ownerManagedIdentity.outputs.id
+output service_api_endpoints string[] = [ apiFrontDoorRoute.outputs.endpoint ]
+output service_web_endpoints string[] = [ webFrontDoorRoute.outputs.endpoint ]

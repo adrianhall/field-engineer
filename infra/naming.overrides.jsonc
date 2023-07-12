@@ -37,6 +37,7 @@
 
   // Common services - may be in hub or workload resource group
   // "applicationInsights": "",
+  // "buildAgent": "",
   // "logAnalyticsWorkspace": "",
 
   // Workload resources
