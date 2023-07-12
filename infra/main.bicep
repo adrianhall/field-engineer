@@ -358,7 +358,7 @@ output bastion_hostname string = willDeployHubNetwork ? hubNetwork.outputs.basti
 output firewall_hostname string = willDeployHubNetwork ? hubNetwork.outputs.firewall_hostname : ''
 
 // Spoke resources
-output build_agent string = installBuildAgent ? buildAgent.outputs.build_agent_hostname : ''
+// output build_agent string = installBuildAgent ? buildAgent.outputs.build_agent_hostname : ''
 
 // Workload resources
 output service_api_endpoints string[] = workload.outputs.service_api_endpoints
