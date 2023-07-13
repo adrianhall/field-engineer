@@ -87,7 +87,6 @@ param logAnalyticsWorkspaceId string = ''
 param enablePublicNetworkAccess bool = true
 
 @description('The firewall rules to install on the Key Vault.')
-#disable-next-line no-unused-params
 param firewallRules FirewallRules?
 
 @description('The list of application identities to be granted owner access to the workload resources.')
@@ -127,7 +126,7 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-02-01' = {
   tags: tags
   properties: {
     enableRbacAuthorization: true
-    networkAcls: firewallRules != null ? networkAcls : { bypass: 'None' }
+    networkAcls: networkAcls
     publicNetworkAccess: enablePublicNetworkAccess || firewallRules != null ? 'Enabled' : 'Disabled'
     sku: {
       family: 'A'

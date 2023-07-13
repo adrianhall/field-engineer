@@ -30,6 +30,11 @@ type DiagnosticSettings = {
   enableMetrics: bool
 }
 
+type FirewallRules = {
+  @description('The list of IP address CIDR blocks to allow access from.')
+  allowedIpAddresses: string[]
+}
+
 // ========================================================================
 // PARAMETERS
 // ========================================================================
@@ -58,6 +63,9 @@ param managedIdentityName string = ''
 @description('Whether or not public endpoint access is allowed for this server')
 param enablePublicNetworkAccess bool = true
 
+@description('The firewall rules to install on the Key Vault.')
+param firewallRules FirewallRules?
+
 @secure()
 @minLength(8)
 @description('The password for the administrator account on the SQL Server.')
@@ -66,6 +74,16 @@ param sqlAdministratorPassword string = newGuid()
 @minLength(8)
 @description('The username for the administrator account on the SQL Server.')
 param sqlAdministratorUsername string = 'adminuser'
+
+// ========================================================================
+// VARIABLES
+// ========================================================================
+
+var allowedCidrBlocks = firewallRules != null ? map(firewallRules!.allowedIpAddresses, ipaddr => {
+  name: replace(replace(ipaddr, '.', '_'), '/','_')
+  startIpAddress: parseCidr(ipaddr).firstUsable
+  endIpAddres: parseCidr(ipaddr).lastUsable
+}) : []
 
 // ========================================================================
 // AZURE RESOURCES
@@ -89,7 +107,7 @@ resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
       sid: managedIdentity.properties.principalId
       tenantId: managedIdentity.properties.tenantId
     }
-    publicNetworkAccess: enablePublicNetworkAccess ? 'Enabled' : 'Disabled'
+    publicNetworkAccess: enablePublicNetworkAccess || firewallRules != null ? 'Enabled' : 'Disabled'
     version: '12.0'
   }
 
@@ -100,6 +118,14 @@ resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
       startIpAddress: '0.0.0.0'
     }
   }
+
+  resource allowClientIps 'firewallRules' = [ for entry in allowedCidrBlocks: {
+    name: 'AllowClientIp-${entry.name}'
+    properties: {
+      endIpAddress: entry.endIpAddress
+      startIpAddress: entry.startIpAddress
+    }
+  }]
 
   resource auditSettings 'auditingSettings' = {
     name: 'default'
