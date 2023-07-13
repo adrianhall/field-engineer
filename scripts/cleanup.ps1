@@ -77,16 +77,43 @@ if ($HubResourceGroup) {
     $rgHub = "$rgPrefix-hub"
 }
 
+# Gets an access token for accessing Azure Resource Manager APIs
+function Get-AzAccessToken {
+    $azContext = Get-AzContext
+    $azProfile = [Microsoft.Azure.Commands.Common.Authentication.Abstractions.AzureRmProfileProvider]::Instance.Profile
+    $profileClient = New-Object -TypeName Microsoft.Azure.Commands.ResourceManager.Common.RMProfileClient -ArgumentList ($azProfile)
+    $token = $profileClient.AcquireAccessToken($azContext.Subscription.TenantId)
+    return $token
+}
+
+# Get-AzConsumptionBudget doesn't seem to return the list of budgets,
+# so we use the REST API instead.
+function Get-AzBudget($resourceGroupName) {
+    $azContext = Get-AzContext
+    $token = Get-AzAccessToken
+    $authHeader = @{
+        'Content-Type'='application/json'
+        'Authorization'='Bearer ' + $token.AccessToken
+    }
+    $baseUri = "https://management.azure.com/subscriptions/$($azContext.Subscription)/resourceGroups/$($resourceGroupName)/providers/Microsoft.Consumption/budgets"
+    $apiVersion = "?api-version=2023-05-01"
+    $restUri = "$($baseUri)$($apiVersion)"
+    $result = Invoke-RestMethod -Uri $restUri -Method GET -Header $authHeader
+    return $result.value
+}
+
 function Test-ResourceGroupExists($resourceGroupName) {
     $resourceGroup = Get-AzResourceGroup -Name $resourceGroupName -ErrorAction SilentlyContinue
     return $null -ne $resourceGroup
 }
 
+# Removed all budgets that are scoped to a resource group of interest.
 function Remove-ConsumptionBudgetForResourceGroup($resourceGroupName) {
-    Get-AzConsumptionBudget -ResourceGroupName $resourceGroupName
+    # Get-AzConsumptionBudget -ResourceGroupName $resourceGroupName
+    Get-AzBudget -ResourceGroupName $resourceGroupName
     | Foreach-Object {
-        "`tRemoving $resourceGroupName::$($_.Name)" | Write-Output
-        Remove-AzConsumptionBudget -Name $_.Name -ResourceGroupName $_.ResourceGroupName
+        "`tRemoving $resourceGroupName::$($_.name)" | Write-Output
+        Remove-AzConsumptionBudget -Name $_.name -ResourceGroupName $resourceGroupName
     }
 }
 

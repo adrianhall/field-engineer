@@ -112,6 +112,18 @@ var moduleTags = union(deploymentSettings.tags, deploymentSettings.workloadTags)
 // If the sqlResourceGroup != the workload resource group, don't create a server.
 var createSqlServer = resourceNames.sqlResourceGroup == resourceNames.resourceGroup
 
+
+// Budget amounts
+//  All values are calculated in dollars (rounded to nearest dollar) in the South Central US region.
+var budget = {
+  sqlDatabase: deploymentSettings.isProduction ? 457 : 15
+  appServicePlan: (deploymentSettings.isProduction ? 690 : 55) * (useCommonAppServicePlan ? 1 : 2)
+  virtualNetwork: deploymentSettings.isNetworkIsolated ? 4 : 0
+  privateEndpoint: deploymentSettings.isNetworkIsolated ? 9 : 0
+  frontDoor: deploymentSettings.isProduction || deploymentSettings.isNetworkIsolated ? 335 : 38
+}
+var budgetAmount = reduce(map(items(budget), (obj) => obj.value), 0, (total, amount) => total + amount)
+
 // ========================================================================
 // EXISTING RESOURCES
 // ========================================================================
@@ -197,6 +209,9 @@ module sqlServer '../core/database/sql-server.bicep' = if (createSqlServer) {
     managedIdentityName: ownerManagedIdentity.outputs.name
 
     // Settings
+    firewallRules: !deploymentSettings.isProduction && !empty(clientIpAddress) ? {
+      allowedIpAddresses: [ '${clientIpAddress}/32' ]
+    } : null
     diagnosticSettings: diagnosticSettings
     enablePublicNetworkAccess: !deploymentSettings.isNetworkIsolated
     sqlAdministratorPassword: administratorPassword
@@ -414,6 +429,19 @@ module approveFrontDoorPrivateLinks '../core/security/front-door-route-approval.
     webFrontDoorRoute
     apiFrontDoorRoute
   ]
+}
+
+module workloadBudget '../core/cost-management/budget.bicep' = {
+  name: 'workload-budget'
+  scope: resourceGroup
+  params: {
+    name: resourceNames.budget
+    amount: budgetAmount
+    contactEmails: [
+      deploymentSettings.tags['azd-owner-email']
+    ]
+    resourceGroups: union([ resourceGroup.name ], deploymentSettings.isNetworkIsolated ? [ resourceNames.spokeResourceGroup ] : [])
+  }
 }
 
 // ========================================================================

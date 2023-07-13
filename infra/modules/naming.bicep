@@ -116,6 +116,7 @@ var defaultResourceNames = {
   apiAppServicePlan: 'asp-api-${resourceToken}'
   apiPrivateEndpoint: 'pep-api-${resourceToken}'
   appManagedIdentity: 'id-app-${resourceToken}'
+  budget: 'budget-${deploymentSettings.name}-${deploymentSettings.stage}-${deploymentSettings.location}${diffPrefix}'
   commonAppServicePlan: 'asp-common-${resourceToken}'
   frontDoorEndpoint: 'fde-${resourceToken}'
   frontDoorProfile: 'afd-${resourceToken}'
@@ -182,6 +183,7 @@ output resourceNames object = {
   apiAppServicePlan: contains(overrides, 'apiAppServicePlan') && !empty(overrides.apiAppServicePlan) ? overrides.apiAppServicePlan : defaultResourceNames.apiAppServicePlan
   apiPrivateEndpoint: contains(overrides, 'apiPrivateEndpoint') && !empty(overrides.apiPrivateEndpoint) ? overrides.apiPrivateEndpoint : defaultResourceNames.apiPrivateEndpoint
   appManagedIdentity: contains(overrides, 'appManagedIdentity') && !empty(overrides.appManagedIdentity) ? overrides.appManagedIdentity : defaultResourceNames.appManagedIdentity
+  budget: contains(overrides, 'budget') && !empty(overrides.budget) ? overrides.budget : defaultResourceNames.budget
   commonAppServicePlan: contains(overrides, 'commonAppServicePlan') && !empty(overrides.commonAppServicePlan) ? overrides.commonAppServicePlan : defaultResourceNames.commonAppServicePlan
   frontDoorEndpoint: contains(overrides, 'frontDoorEndpoint') && !empty(overrides.frontDoorEndpoint) ? overrides.frontDoorEndpoint : defaultResourceNames.frontDoorEndpoint
   frontDoorProfile: contains(overrides, 'frontDoorProfile') && !empty(overrides.frontDoorProfile) ? overrides.frontDoorProfile : defaultResourceNames.frontDoorProfile

@@ -114,11 +114,18 @@ param administratorPassword string
 @description('The username for the administrator account on the build agent.')
 param administratorUsername string
 
-@description('If provided, the Azure DevOps settings to use for the build agent.')
-param azureDevopsSettings AzureDevopsSettings?
+@description('The URL of the Azure DevOps organization.  If this and the adoToken is provided, then an Azure DevOps build agent will be deployed.')
+param adoOrganizationUrl string = ''
 
-@description('If provided, the GitHub Actions settings to use for the build agent.')
-param githubActionsSettings GithubActionsSettings?
+@description('The access token for the Azure DevOps organization.  If this and the adoOrganizationUrl is provided, then an Azure DevOps build agent will be deployed.')
+param adoToken string = ''
+
+// Settings for setting up a build agent for GitHub Actions
+@description('The URL of the GitHub repository.  If this and the githubToken is provided, then a GitHub Actions build agent will be deployed.')
+param githubRepositoryUrl string = ''
+
+@description('The personal access token for the GitHub repository.  If this and the githubRepositoryUrl is provided, then a GitHub Actions build agent will be deployed.')
+param githubToken string = ''
 
 // ========================================================================
 // VARIABLES
@@ -157,9 +164,15 @@ module buildAgent '../core/compute/windows-buildagent.bicep' = {
     // Settings
     administratorPassword: administratorPassword
     administratorUsername: administratorUsername
-    azureDevopsSettings: azureDevopsSettings
+    azureDevopsSettings: !empty(adoOrganizationUrl) && !empty(adoToken) ? {
+      organizationUrl: adoOrganizationUrl
+      token: adoToken
+    } : null
     diagnosticSettings: diagnosticSettings
-    githubActionsSettings: githubActionsSettings
+    githubActionsSettings: !empty(githubRepositoryUrl) && !empty(githubToken) ? {
+      repositoryUrl: githubRepositoryUrl
+      token: githubToken
+    } : null
   }
 }
 

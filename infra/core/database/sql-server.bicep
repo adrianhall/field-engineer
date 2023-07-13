@@ -82,7 +82,7 @@ param sqlAdministratorUsername string = 'adminuser'
 var allowedCidrBlocks = firewallRules != null ? map(firewallRules!.allowedIpAddresses, ipaddr => {
   name: replace(replace(ipaddr, '.', '_'), '/','_')
   startIpAddress: parseCidr(ipaddr).firstUsable
-  endIpAddres: parseCidr(ipaddr).lastUsable
+  endIpAddress: parseCidr(ipaddr).lastUsable
 }) : []
 
 // ========================================================================

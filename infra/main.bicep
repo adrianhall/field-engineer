@@ -147,17 +147,7 @@ var diagnosticSettings = {
   enableMetrics: true
 }
 
-var githubActionsSettings = (!empty(githubRepositoryUrl) && !empty(githubToken)) ? {
-  repositoryUrl: githubRepositoryUrl
-  token: githubToken
-} : null
-
-var azureDevopsSettings = (!empty(adoOrganizationUrl) && !empty(adoToken)) ? {
-  organizationUrl: adoOrganizationUrl
-  token: adoToken
-} : null
-
-var installBuildAgent = isNetworkIsolated && (azureDevopsSettings != null || githubActionsSettings != null)
+var installBuildAgent = isNetworkIsolated && ((!empty(adoOrganizationUrl) && !empty(adoToken)) || (!empty(githubRepositoryUrl) && !empty(githubToken)))
 
 // ========================================================================
 // BICEP MODULES
@@ -200,7 +190,11 @@ module resourceGroups './modules/resource-groups.bicep' = {
 }
 
 /*
-** Azure Monitor Resources - create this either in the hub or the spoke network.
+** Azure Monitor Resources
+**
+** Azure Monitor resources (Log Analytics Workspace and Application Insights) are
+** homed in the hub network when it's available, and the workload resource group
+** when it's not available.
 */
 module azureMonitor './modules/azure-monitor.bicep' = {
   name: '${prefix}-azure-monitor'
@@ -223,6 +217,9 @@ module azureMonitor './modules/azure-monitor.bicep' = {
 **  The bastion host
 **  The firewall
 **  A route table that is used within the spoke to reach the firewall
+**
+** We also set up a budget with cost alerting for the hub network (separate
+** from the workload budget)
 */
 module hubNetwork './modules/hub-network.bicep' = if (willDeployHubNetwork) {
   name: '${prefix}-hub-network'
@@ -298,7 +295,7 @@ module peerVirtualNetworks './modules/peer-networks.bicep' = if (willDeployHubNe
 /*
 ** Create the application resources.
 */
-module workload './modules/workload.bicep' = {
+module workload './modules/workload-resources.bicep' = {
   name: '${prefix}-workload'
   params: {
     deploymentSettings: deploymentSettings
@@ -325,29 +322,29 @@ module workload './modules/workload.bicep' = {
 /*
 ** Create a build agent (only if network isolated and the relevant information has been provided)
 */
-// module buildAgent './modules/build-agent.bicep' = if (installBuildAgent) {
-//   name: '${prefix}-build-agent'
-//   params: {
-//     deploymentSettings: deploymentSettings
-//     diagnosticSettings: diagnosticSettings
-//     resourceNames: naming.outputs.resourceNames
+module buildAgent './modules/build-agent.bicep' = if (installBuildAgent) {
+  name: '${prefix}-build-agent'
+  params: {
+    deploymentSettings: deploymentSettings
+    diagnosticSettings: diagnosticSettings
+    resourceNames: naming.outputs.resourceNames
 
-//     // Dependencies
-//     logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
-//     managedIdentityId: workload.outputs.owner_managed_identity_id
-//     subnets: isNetworkIsolated ? spokeNetwork.outputs.subnets : {}
+    // Dependencies
+    logAnalyticsWorkspaceId: azureMonitor.outputs.log_analytics_workspace_id
+    managedIdentityId: workload.outputs.owner_managed_identity_id
+    subnets: isNetworkIsolated ? spokeNetwork.outputs.subnets : {}
 
-//     // Settings
-//     administratorPassword: administratorPassword
-//     administratorUsername: administratorUsername
-//     azureDevopsSettings: azureDevopsSettings
-//     githubActionsSettings: githubActionsSettings
-//   }
-// }
+    // Settings
+    administratorPassword: administratorPassword
+    administratorUsername: administratorUsername
+    adoOrganizationUrl: adoOrganizationUrl
+    adoToken: adoToken
+    githubRepositoryUrl: githubRepositoryUrl
+    githubToken: githubToken
+  }
+}
 
 // TODO: Post provisioning configuration (database roles, etc.)
-
-// TODO: Cost management (budgets, alerts, etc.)
 
 // ========================================================================
 // OUTPUTS
