@@ -11,6 +11,6 @@ hooks:
       run: ./infra/scripts/whatsmyip.ps1
 services:
   web:
-    project: src/dotnet/FieldEngineer.Web
+    project: src/FieldEngineer.Web
     language: csharp
     host: appservice

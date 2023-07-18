@@ -289,63 +289,6 @@ module commonAppServicePlan '../core/hosting/app-service-plan.bicep' = if (useCo
   }
 }
 
-module apiService './workload-appservice.bicep' = {
-  name: 'workload-apiservice'
-  scope: resourceGroup
-  params: {
-    deploymentSettings: deploymentSettings
-    diagnosticSettings: diagnosticSettings
-    tags: moduleTags
-    
-    // Dependencies
-    applicationInsightsId: applicationInsightsId
-    appServicePlanName: useCommonAppServicePlan ? commonAppServicePlan.outputs.name : resourceNames.apiAppServicePlan
-    keyVaultName: keyVault.outputs.name
-    logAnalyticsWorkspaceId: logAnalyticsWorkspaceId
-    managedIdentityName: appManagedIdentity.outputs.name
-
-    // Settings
-    appServiceName: resourceNames.apiAppService
-    outboundSubnetId: deploymentSettings.isNetworkIsolated ? subnets[resourceNames.spokeApiOutboundSubnet].id : ''
-    privateEndpointSettings: deploymentSettings.isNetworkIsolated ? {
-      name: resourceNames.apiPrivateEndpoint
-      resourceGroupName: resourceNames.spokeResourceGroup
-      subnetId: subnets[resourceNames.spokeApiInboundSubnet].id
-    } : null
-    restrictToFrontDoor: frontDoor.outputs.front_door_id
-    servicePrefix: 'api'
-    useExistingAppServicePlan: useCommonAppServicePlan
-  }
-}
-
-module writeApiServiceUrl '../core/security/key-vault-secrets.bicep' = {
-  name: 'write-api-service-url-to-keyvault'
-  scope: resourceGroup
-  params: {
-    name: keyVault.outputs.name
-    secrets: [
-      { key: 'FieldEngineer--Api--Endpoint', value: apiService.outputs.app_service_uri }
-    ]
-  }
-}
-
-module apiFrontDoorRoute '../core/security/front-door-route.bicep' = {
-  name: 'api-front-door-route'
-  scope: resourceGroup
-  params: {
-    frontDoorEndpointName: frontDoor.outputs.endpoint_name
-    frontDoorProfileName: frontDoor.outputs.profile_name
-    originPrefix: 'api'
-    serviceAddress: apiService.outputs.app_service_hostname
-    routePattern: '/api/*'
-    privateLinkSettings: deploymentSettings.isNetworkIsolated ? {
-      privateEndpointResourceId: apiService.outputs.app_service_id
-      linkResourceType: 'sites'
-      location: deploymentSettings.location
-    } : {}
-  }
-}
-
 module webService './workload-appservice.bicep' = {
   name: 'workload-webservice'
   scope: resourceGroup
@@ -427,7 +370,6 @@ module approveFrontDoorPrivateLinks '../core/security/front-door-route-approval.
   }
   dependsOn: [
     webFrontDoorRoute
-    apiFrontDoorRoute
   ]
 }
 
@@ -449,5 +391,4 @@ module workloadBudget '../core/cost-management/budget.bicep' = {
 // ========================================================================
 
 output owner_managed_identity_id string = ownerManagedIdentity.outputs.id
-output service_api_endpoints string[] = [ apiFrontDoorRoute.outputs.endpoint ]
 output service_web_endpoints string[] = [ webFrontDoorRoute.outputs.endpoint ]
