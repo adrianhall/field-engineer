@@ -6,11 +6,11 @@ metadata:
 hooks:
   preprovision:
     posix:
-      run: ./scripts/whatsmyip.sh
+      run: ./infra/scripts/whatsmyip.sh
     windows:
-      run: ./scripts/whatsmyip.ps1
+      run: ./infra/scripts/whatsmyip.ps1
 services:
-  api:
-    project: src/dotnet/FieldEngineer.Api
+  web:
+    project: src/dotnet/FieldEngineer.Web
     language: csharp
     host: appservice
