@@ -391,4 +391,10 @@ module workloadBudget '../core/cost-management/budget.bicep' = {
 // ========================================================================
 
 output owner_managed_identity_id string = ownerManagedIdentity.outputs.id
+
+output service_managed_identities object[] = [
+  { principalId: ownerManagedIdentity.outputs.principal_id, principalType: 'ServicePrincipal', role: 'owner'       }
+  { principalId: appManagedIdentity.outputs.principal_id,   principalType: 'ServicePrincipal', role: 'application' }
+]
+
 output service_web_endpoints string[] = [ webFrontDoorRoute.outputs.endpoint ]

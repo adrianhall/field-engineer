@@ -356,4 +356,5 @@ output firewall_hostname string = willDeployHubNetwork ? hubNetwork.outputs.fire
 output build_agent string = installBuildAgent ? buildAgent.outputs.build_agent_hostname : ''
 
 // Workload resources
+output service_managed_identities object[] = workload.outputs.service_managed_identities
 output service_web_endpoints string[] = workload.outputs.service_web_endpoints
